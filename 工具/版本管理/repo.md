@@ -13,8 +13,13 @@
 > 
 
 ### 5、提交服务器  
-> repo upload .
-> 
+```
+git commit --amend -s
+
+git push origin HEAD:refs/for/O-M01-PUBLIC
+或
+repo upload .
+```
 
 ### 6、删除分支  
 > repo abandon branchname  
