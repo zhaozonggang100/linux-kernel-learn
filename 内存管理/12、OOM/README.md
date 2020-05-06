@@ -1,5 +1,7 @@
 参考：
-> https://segmentfault.com/a/1190000008268803
+> https://segmentfault.com/a/1190000008268803  
+> https://www.cnblogs.com/arnoldlu/p/8567559.html  
+> https://www.cnblogs.com/arnoldlu/p/8568330.html#oom  
 
 
 ### １、文件系统配置  
