@@ -1,0 +1,53 @@
+/proc/buddyinfo：查看node个数以及每个node每个zone的buddy链表free页情况  
+
+/proc/slabinfo：查看整个系统slab使用情况
+
+/proc/zoneinfo：查看整个系统zone的使用情况，包括水位等，node中每个zone的大小（spanned：单位页）
+
+/proc/swaps：查看swap的挂载情况，等同命令swapon -s
+
+/proc/sys/vm/lowmem_reserver_ratio：查看各个节点中每个zone的保留内存情况  
+
+/proc/meminfo：内存使用情况
+
+/proc/<pid>/smaps：进程的内存使用情况
+
+/proc/<pid>/status：进程swap内存情况
+
+/proc/<pid>/oom_adj：OOM时根据该参数选择kill进程
+
+/proc/<pid>/oom_socre_adj：OOM时根据该参数选择kill进程
+
+`/proc/<pid>/oom_socre`：OOM时根据该参数选择kill进程
+
+`/proc/sys/vm/swappiness`：决定内核回收内存时选择回收什么样的内存（page cahe、匿名映射页等）
+
+​		情况1：不活跃文件页直接回收，或者脏页回写后回收（不活跃涉及到每个node的lru链表）
+
+​		情况2：不活跃anoymous页触发swap并回收
+
+​		取值范围：0~100，值越大倾向swap
+
+
+
+`/proc/sys/vm/min_free_kbytes`：zone中最低水位值，与kswapd有关，单位字节，watermark[low|high]根据min计算，low（5/4），high（3/2）s
+
+
+
+`/proc/sys/vm/zone_reclaim_mode`：配置当某一个node内存不足时是否可以从其他node回收内存
+
+​		0：可以从本node回收，也可以从别的node回收
+
+​		1：只回收本地内存
+
+​		2：只回收本地内存，回写脏页
+
+​		3：只回收本地内存，可以对anoymous页swap
+
+
+
+`/proc/pagetyeinfo`：查看当前系统page的类型和使用情况
+
+
+
+`/proc/partitions`：查看当前系统的分区情况s
