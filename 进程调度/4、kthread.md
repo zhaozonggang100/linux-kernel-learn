@@ -1,0 +1,13 @@
+### 1、创建一个内核线程
+
+https://blog.csdn.net/zhangdaxia2/article/details/83096565
+
+```
+1、kthread_create(include/linux/kthread.h)调用kthread_create，ktrhead_create调用kthread_create_on_node创建一个kthread_create_info结构并填充，接着加入kthread_create_list链表，然后唤醒kthreadd_tasks
+2、kthreadd_tasks从kthread_create_list链表取出kthread_create_info结构使用create_kthread创建线程
+	kthreadd_tasks的执行函数是kthreadd，在start_kernel->rest_init中通过kernel_thread创建的
+	rest_init同时还创建了kernel_init，kernel_init在内核加载完之后会创建用户态init进程
+3、create_thread中调用kernel_thread创建一个kthread内核线程传入参数为kthread_create_info
+4、在kthread线程中将执行我们需要的线程的函数
+```
+

@@ -51,3 +51,7 @@
 
 
 `/proc/partitions`：查看当前系统的分区情况s
+
+
+
+`/proc/sys/vm/drop_caches`：写1清除buff
