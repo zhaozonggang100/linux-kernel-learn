@@ -68,6 +68,8 @@ bit 16~19 hardirq count，由于Linux不支持hardirq嵌套，所以只有bit16�
 ```
 https://www.sohu.com/a/229979296_467784
 判断当前进程是否可以主动出让cpu给其他线程
+spin_unlock_irqstore会调用preempt_enable制造一个抢占点
+local_irq_enable不会制造抢占点
 ```
 
 3、void __wake_up_sync_key(wait_queue_head_t *q, unsigned int mode, int nr, void *key);

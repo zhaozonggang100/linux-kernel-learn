@@ -161,3 +161,26 @@ CONFIG_PREEMPT_VOLUNTARY：自愿被抢占
 
 start_kernel-->rcu_init
 
+
+
+### 9、RCU调试
+
+```
+CONFIG_RCU_CPU_STALL_TIMEOUT
+```
+
+/sys/module/rcupdate/parameters/rcu_cpu_stall_suppress：这个检测会过度的延迟GP，系统上是0，没有使能
+
+/sys/module/rcupdate/parameters/rcu_cpu_stall_timeout
+
+```
+RCU_STALL_DELAY_DELTA
+```
+
+由于lockdep带来的负载给RCU STALL检测延时5s
+
+```
+RCU_STALL_RAT_DELAY
+```
+
+本地cpu没有触发rcu超时检测，其他cpu会抱怨

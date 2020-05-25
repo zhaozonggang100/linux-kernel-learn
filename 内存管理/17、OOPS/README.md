@@ -2,6 +2,7 @@
 参考：  
 https://blog.csdn.net/kris_fei/article/details/77936620
 现场：  
+
 ```
 04-21 16:43:06.015     0     0 W k       : Call trace:
 04-21 16:43:06.015     0     0 W k       : [<ffffff80080882c4>] dump_backtrace+0x0/0x1c0
@@ -48,3 +49,9 @@ https://blog.csdn.net/kris_fei/article/details/77936620
 
 2、方法2：反汇编（disassemble）  
 3、方法3  
+
+
+
+### 2、oops系统配置
+
+/proc/sys/kernel/panic_on_oops：当发生oops系统立刻重启
