@@ -15,21 +15,43 @@ https://wenku.baidu.com/view/d50196926bec0975f465e24e.html
 
 > BOOT Area Partition 2（不能修改）  
 
-> RPMB（不能修改）  
+```
+1、嵌入式系统可以直接从boot分区启动
+2、大小为128kb的整数倍
+```
+
+
+
+> RPMB（不能修改，Replay Protected Memory Block -- 回放保护存储块）  
+
+```
+1、大小为128KB的正数倍
+2、对其中数据的访问需要签名认证
+```
+
+
 
 > General Purpose Partition 1～4  
 
 ```
-在芯片出场时不存在，只有主动配置才会存在
+1、在芯片出场时不存在，只有主动配置才会存在
+2、最多有4个分区
+3、是从UDA中分配的
 ```
 
-> User Data Area  
+
+
+> User Data Area  （用户数据区）
 
 ```
 安卓系统会对此区域分区：boot、system、vendor等
 ```
 
+
+
 > Vender private area  
+
+
 
 > 用户不可见分区  
 
