@@ -12,3 +12,7 @@
 8、EMMC中实现NANDFLASH管理（坏块管理、擦写均衡、ECC-纠错、垃圾回收等）的软件叫FTL（FLASH Translation Layer）
 ```
 
+### 2、EMMC的可靠写
+
+### 3、数据标签机制
+

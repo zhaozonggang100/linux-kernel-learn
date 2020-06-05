@@ -3,6 +3,8 @@ https://blog.csdn.net/wxh0000mm/article/details/77864002
 https://www.cnblogs.com/chyl411/p/6739352.html  
 https://wenku.baidu.com/view/d50196926bec0975f465e24e.html  
 
+https://www.cnblogs.com/smartjourneys/articles/6653867.html
+
 ### 1、ＥＭＭＣ分区对应文件系统信息　　
 ```
 /proc/mounts：查看所有挂载分区的信息
