@@ -657,6 +657,14 @@ blk_qc_t submit_bio(int rw, struct bio *bio)
 
 7、IO调度器会对gendisk请求队列(request_queue)中的请求进行调度，唤醒块设备绑定的内核线程来fecth  request
 
+```
+参考：
+	https://zhuanlan.zhihu.com/p/39199521
+	https://blog.csdn.net/jasonLee_lijiaqi/article/details/82850689
+```
+
+
+
 8、剩下的就是具体块设备驱动具体怎么处理请求了
 
 ```
