@@ -112,7 +112,7 @@ ssize_t __vfs_write(struct file *file, const char __user *p, size_t count,
 
 static ssize_t new_sync_write(struct file *filp, const char __user *buf, size_t len, loff_t *ppos)
 {
-	// 用户空间的buf映射到iovec结构体中
+	// 用户空间的buf映射到iovec结构体中，这是临时变量
     struct iovec iov = { .iov_base = (void __user *)buf, .iov_len = len };
     struct kiocb kiocb;
     struct iov_iter iter;
@@ -148,7 +148,7 @@ struct kiocb {
 struct iov_iter {
     int type;				// 读或者写
     size_t iov_offset;		// 初始化为0
-    size_t count;			// 用户buf的长度
+    size_t count;			// 用户buf的总长度
     union {
         const struct iovec *iov;
         const struct kvec *kvec;
@@ -239,3 +239,215 @@ include/linux/syscalls.h
 https://blog.csdn.net/dog250/article/details/78879600
 
 append模式通过锁主inode来保证原子，write系统调用本身并步保证原子
+
+###  4、基于EXT4的写
+
+与上面基于裸设备的写IO不同，EXT4实现了自己的file_operations(drivers/fs/ext4/file.c)
+
+承接上面的__vfs_write调用具体的文件系统的写操作函数，基于ext4的写操作的流程如下
+
+ext4_file_write_iter->__generic_file_write_iter->generic_file_direct_write->filemap_write_and_wait_range->__filemap_fdatawrite_range->do_writepages->generic_writepages->write_cache_pages->__writepage->ext4_writepage->ext4_bio_write_page->io_submit_add_bh
+
+参考：
+
+https://www.cnblogs.com/f-ck-need-u/p/7016077.html（阿里云团队）
+
+https://blog.csdn.net/qq_32473685/article/details/103494398
+
+1、fs/ext4/file.c中定义了ext4文件系统的file_operations中ext4_file_write_iter实现了ext4提供给vfs的写文件操作
+
+```
+static ssize_t
+ext4_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
+{
+    struct file *file = iocb->ki_filp;
+    struct inode *inode = file_inode(iocb->ki_filp);
+    struct mutex *aio_mutex = NULL;
+    struct blk_plug plug;
+    // 这里将内核io控制块设置为直接写，决定了__generic_file_write_iter函数内部的分支判断
+    int o_direct = iocb->ki_flags & IOCB_DIRECT;
+    int overwrite = 0;
+    ssize_t ret;
+
+    /*
+     * Unaligned direct AIO must be serialized; see comment above
+     * In the case of O_APPEND, assume that we must always serialize
+     */
+    if (o_direct &&
+        ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS) &&
+        !is_sync_kiocb(iocb) &&
+        (iocb->ki_flags & IOCB_APPEND ||
+         ext4_unaligned_aio(inode, from, iocb->ki_pos))) {
+        aio_mutex = ext4_aio_mutex(inode);
+        mutex_lock(aio_mutex);
+        ext4_unwritten_wait(inode);
+    }
+
+    mutex_lock(&inode->i_mutex);
+    ret = generic_write_checks(iocb, from);
+    if (ret <= 0)
+        goto out;
+
+    /*
+     * If we have encountered a bitmap-format file, the size limit
+     * is smaller than s_maxbytes, which is for extent-mapped files.
+     */
+    if (!(ext4_test_inode_flag(inode, EXT4_INODE_EXTENTS))) {
+        struct ext4_sb_info *sbi = EXT4_SB(inode->i_sb);
+
+        if (iocb->ki_pos >= sbi->s_bitmap_maxbytes) {
+            ret = -EFBIG;
+            goto out;
+        }
+        iov_iter_truncate(from, sbi->s_bitmap_maxbytes - iocb->ki_pos);
+    }
+
+    iocb->private = &overwrite;
+    if (o_direct) {
+        size_t length = iov_iter_count(from);
+        loff_t pos = iocb->ki_pos;
+        blk_start_plug(&plug);
+
+        /* check whether we do a DIO overwrite or not */
+        if (ext4_should_dioread_nolock(inode) && !aio_mutex &&
+            !file->f_mapping->nrpages && pos + length <= i_size_read(inode)) {
+            struct ext4_map_blocks map;
+            unsigned int blkbits = inode->i_blkbits;
+            int err, len;
+
+            map.m_lblk = pos >> blkbits;
+            map.m_len = (EXT4_BLOCK_ALIGN(pos + length, blkbits) >> blkbits)
+                - map.m_lblk;
+            len = map.m_len;
+
+            err = ext4_map_blocks(NULL, inode, &map, 0);
+            /*
+             * 'err==len' means that all of blocks has
+             * been preallocated no matter they are
+             * initialized or not.  For excluding
+             * unwritten extents, we need to check
+             * m_flags.  There are two conditions that
+             * indicate for initialized extents.  1) If we
+             * hit extent cache, EXT4_MAP_MAPPED flag is
+             * returned; 2) If we do a real lookup,
+             * non-flags are returned.  So we should check
+             * these two conditions.
+             */
+            if (err == len && (map.m_flags & EXT4_MAP_MAPPED))
+                overwrite = 1;
+        }
+    }
+
+	/*
+		参数：
+			iocb：内核IO控制块
+			from：iov_iter结构的io向量
+		说明：下面函数执行写入from指向的数据io向量
+	*/
+    ret = __generic_file_write_iter(iocb, from);
+    mutex_unlock(&inode->i_mutex);
+
+    if (ret > 0) {
+        ssize_t err;
+
+        err = generic_write_sync(file, iocb->ki_pos - ret, ret);
+        if (err < 0)
+            ret = err;
+    }
+    if (o_direct)
+        blk_finish_plug(&plug);
+
+    if (aio_mutex)
+        mutex_unlock(aio_mutex);
+    return ret;
+
+out:
+    mutex_unlock(&inode->i_mutex);
+    if (aio_mutex)
+        mutex_unlock(aio_mutex);
+    return ret;
+}
+```
+
+2、generic_file_direct_write
+
+```
+ssize_t
+generic_file_direct_write(struct kiocb *iocb, struct iov_iter *from, loff_t pos)
+{
+    struct file *file = iocb->ki_filp;
+    struct address_space *mapping = file->f_mapping;
+    struct inode    *inode = mapping->host;
+    ssize_t     written;
+    size_t      write_len;
+    pgoff_t     end;
+    struct iov_iter data;
+	
+	// 计算总的要写入的数据的长度
+    write_len = iov_iter_count(from);
+    // 结尾位置要进行页对齐
+    end = (pos + write_len - 1) >> PAGE_CACHE_SHIFT;
+
+    written = filemap_write_and_wait_range(mapping, pos, pos + write_len - 1);
+    if (written)
+        goto out;
+
+    /*
+     * After a write we want buffered reads to be sure to go to disk to get
+     * the new data.  We invalidate clean cached page from the region we're
+     * about to write.  We do this *before* the write so that we can return
+     * without clobbering -EIOCBQUEUED from ->direct_IO().
+     */
+    if (mapping->nrpages) {
+        written = invalidate_inode_pages2_range(mapping,
+                    pos >> PAGE_CACHE_SHIFT, end);
+        /*
+         * If a page can not be invalidated, return 0 to fall back
+         * to buffered write.
+         */
+        if (written) {
+            if (written == -EBUSY)
+                return 0;
+            goto out;
+        }
+    }
+    
+    data = *from;
+    written = mapping->a_ops->direct_IO(iocb, &data, pos);
+
+    /*
+     * Finally, try again to invalidate clean pages which might have been
+     * cached by non-direct readahead, or faulted in by get_user_pages()
+     * if the source of the write was an mmap'ed region of the file
+     * we're writing.  Either one is a pretty crazy thing to do,
+     * so we don't support it 100%.  If this invalidation
+     * fails, tough, the write still worked...
+     */
+    if (mapping->nrpages) {
+        invalidate_inode_pages2_range(mapping,
+                          pos >> PAGE_CACHE_SHIFT, end);
+    }
+
+    if (written > 0) {
+        pos += written;
+        iov_iter_advance(from, written);
+        if (pos > i_size_read(inode) && !S_ISBLK(inode->i_mode)) {
+            i_size_write(inode, pos);
+            mark_inode_dirty(inode);
+        }
+        iocb->ki_pos = pos;
+    }
+out:
+    return written;
+}
+```
+
+3、经过各种函数最终到达ext的address_space_operations的ext4_writepage
+
+```
+file：drivers/fs/ext4/inode.c
+
+```
+
+
+
