@@ -296,14 +296,30 @@ struct mmc_blk_data *mmc_blk_alloc_req(struct mmc_card *card,
     struct device *parent,sector_t size,bool default_ro,
     const char *subname, int area_type) 
 {
-    struct mmc_blk_data *md;  // 包含gendisk的md
+    struct mmc_blk_data *md;  // 包含gendisk的md，代表mmc类磁盘描述符
     md = kzalloc(sizeof(struct mmc_blk_data), GFP_KERNEL);
     md->read_only = mmc_blk_readonly(card); // 设置card只读
     md->disk = alloc_disk(perdev_minors); // 分配gendisk
-    // 初始化queue，mmc_queue中包含request_queue
+    // 初始化mmc_blk_data->mmc_queue(queue)，mmc_queue中包含request_queue
     ret = mmc_init_queue(&md->queue, card, NULL, subname, area_type); 
+    
+    /*下面设置mmc磁盘类描述符mmc_blk_data的mmc_queue请求处理函数和私有域*/
     // mmc_blk_issue_rq函数用来处理从IO调度层fetch的request
     md->queue.issue_fn = mmc_blk_issue_rq;
+    // 设置mmc_blk_data->mmc_queue->data(void*)
+    md->queue.data = md;
+    
+    /*下面设置mmc磁盘类描述符的gendisk对象的成员*/
+    // 设置mmc_blk_data->gendisk->major，主设备号179
+    md->disk->major = MMC_BLOCK_MAJOR;
+    // 设置第一个次设备号
+    md->disk->first_minor = devidx * perdev_minors;
+    // 对gendisk的操作函数函数集
+    md->disk->fops = &mmc_bdops;
+    // gendisk的私有域private_data指向mmc_blk_data
+    md->disk->private_data = md;
+    // gendisk的请求队列和mmc_blk_queue->mmc_queue->request_queue都指向IO子系统的请求队列
+    md->disk->queue = md->queue.queue;
     // 设置disk只读
     set_disk_ro(md->disk, md->read_only || default_ro);
 }
@@ -318,8 +334,8 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
     struct mmc_queue_req *mqrq_cur = &mq->mqrq[0];
     struct mmc_queue_req *mqrq_prev = &mq->mqrq[1];
     mq->card = card;
-    // 初始化mmc_queue->queue（struct request_queue），也就是绑定queue和处理函数
-    // 通用块设备层接受来自fs的request需要用mmc_request_fn处理
+
+	// mmc request的处理函数
     mq->queue = blk_init_queue(mmc_request_fn, lock);
     
     // mmc_prep_request过滤不合法request
@@ -391,6 +407,11 @@ int mmc_queue_thread(void *d)
             设备文件名：mmc_queue->data->disk->name
             数据：
             	request->__data_len：所有数据的长度
+            	request->bio->bi_io_vec：指向bio_vec数组的指针		
+            	request->bio->bio_iter->bi_sector：bio中内存数据对应的磁盘起始扇区，
+            		乘以512则是磁盘的地址
+            	request->bio->bi_vcnt：bio_vec数组的长度
+            	page->virtual：页所对应的虚拟地址
         */
         spin_unlock_irq(q->queue_lock);
         // req代表从gendisk->request_queue中获取的request
@@ -852,6 +873,7 @@ void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 ```
 
 11、不，这才是真正的发送MMC命令  
+
 ```
 void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 {
@@ -920,7 +942,7 @@ int sdhci_pre_dma_transfer(struct sdhci_host *host,struct mmc_data *data)
 				在设置了dma方式的时候，mmc_data中sg的数组中每一个sg代表一段数据地址空间
 				只要遍历sg数组即可
 			2、怎么判断打印的是哪个分区（UDA的分区mmcblk0px）
-				sdhci_host->mmc_host
+				mmc_data->mmc_request->mmc_host->mmc_card->mmc_part
 	*/
 	int sg_count;
 	sg_count = dma_map_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
