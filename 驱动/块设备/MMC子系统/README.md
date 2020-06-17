@@ -19,8 +19,6 @@ MMC子系统为Linux上层提供了访问符合MMC协议规范的MMC CARD（包�
 	soc上一般会有host controller用来和mmc card中的controller通信，从而控制card
 ```
 
-
-
 - +core
 
 ```
@@ -33,8 +31,6 @@ MMC子系统为Linux上层提供了访问符合MMC协议规范的MMC CARD（包�
 	3、sdio_bus_type
 		sdio类型的device 和 driver
 ```
-
-
 
 - +card
 
