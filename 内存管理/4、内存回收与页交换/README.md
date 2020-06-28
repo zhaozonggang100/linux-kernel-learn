@@ -54,13 +54,29 @@ Linux为了在分配时为了解决内存不足，使用了两种机制来释放
 ```
 每个zone都会包含上面五个链表，最新的版本，LRU链表已经转移到NODE结构中(pg_data_t)
 
-### 5、用户态修改内存回收时内存页的选择  
-proc/sys/vm/swappiness的值会影响回收内存时是选择page cache还是匿名页  
+### 5、proc
 ```
+/proc/zoneinfo：查看水位标记  
+
+/sys/module/lowmemorykiller/parameters/adj：0,100,200,300,900,906 （android给进程的被杀优先级数组） 
+/sys/module/lowmemorykiller/parameters/minfree：18432,23040,27648,32256,55296,80640 （android给系统设置的内存阈值）
+
+proc/sys/vm/swappiness
 	100：匿名页面和page cache的LRU链表优先级相等  
-	60：回收匿名页面多一些  
-	0：4.0之后的内核只会回收page cache
+    60：回收匿名页面多一些  
+    0：4.0之后的内核只会回收page cache
+
+    解释：
+        值越高，内核就会越积极的使用swap；
+        值越低，就会降低对swap的使用积极性。
+        如果这个值为0，那么内存在free和file-backed使用的页面总量小于高水位标记
+        （high water mark）之前，不会发生交换。
+        
+/proc/sys/vm/min_free_kbytes:内存最低水位
 ```
 
-### 6、查看水位标记  
-cat /proc/zoneinfo
+### 6、触发页回收的条件
+
+1、申请分配页的时候，页分配器首先尝试使用低水线分配页。如果使用低水线分配失败，说明内存轻微不足，页分配器将会唤醒所有符合分配条件的内存节点的页回收线程，异步回收页，然后尝试使用最低水线分配页。如果分配失败，说明内存严重不足，页分配器将会直接回收页。如果直接回收页失败，那么判断是否应该重新尝试回收页。
+
+2、kswpad线程周期性唤醒校测是否需要回收内存
