@@ -381,3 +381,13 @@ kernel-4.4.138：
 7、do_shrink_slab
 
 8、shrinker->scan_objects(shrinker, shrinkctl)
+
+### 6、Android检测进程使用内存工具
+
+1、procrank
+
+查看所有进程的内存使用情况
+
+2、procmem pid
+
+查看进程中哪个函数导致内存占用过多
