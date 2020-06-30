@@ -6,4 +6,6 @@ https://www.cnblogs.com/alantu2018/p/8461272.html
 
 https://wiki.archlinux.org/index.php/ext4
 
-https://ext4.wiki.kernel.org/index.php?title=Ext4_Howto&oldid=9017
+https://ext4.wiki.kernel.org/index.php?title=Ext4_Howto&oldid=9017（wiki）
+
+https://ext4.wiki.kernel.org/index.php/Ext4_patchsets（patches）
