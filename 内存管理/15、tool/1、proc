@@ -55,3 +55,27 @@
 
 
 `/proc/sys/vm/drop_caches`：写1清除buff
+
+
+
+`proc/vmallocinfo`：vmalloc使用情况
+
+
+
+`/proc/vmstat`：虚拟内存使用详情
+
+
+
+`/proc/iomem`：外设映射的虚拟内存
+
+
+
+` sys/kernel/debug/memblock/memory`：debugfs
+
+
+
+` sys/kernel/debug/memblock/reserved`：debugfs
+
+
+
+`sys/kernel/debug/ion/`：debugfs ion
