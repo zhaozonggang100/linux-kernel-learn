@@ -29,5 +29,23 @@
 
 ### 2、slub  
 
+```html
+<a>https://www.cnblogs.com/chaozhu/p/9668871.html</a>
+```
+
+
+
+把slab中描述slab的信息放在了page结构中
+
+只保留部分空对象链表
+
+更友好的支持NUMA，避免了不同node的数据同步困难
+
+抛弃了slab的着色
+
+每cpu缓存以slab为单位，slab的每cpu缓存以对象为单位
+
 
 ### 3、slob  
+
+用于小型嵌入式设备
