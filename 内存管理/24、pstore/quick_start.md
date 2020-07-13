@@ -39,7 +39,7 @@ reserved-memory {
 3、触发pstore
 
 ```
-echo 0 > /sys/module/msm_poweroff/parameters/download_mode
+echo 0 > /sys/module/msm_poweroff/parameters/download_mode	// 关闭qcom ramdump
 echo c > /proc/sysrq-trigger
 ```
 
