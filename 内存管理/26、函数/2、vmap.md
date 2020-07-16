@@ -1,23 +1,6 @@
-1、验证物理页经过PAGE_SHIFT偏移之后对应的页帧是否有效的
+1、映射物理页到连续虚拟地址
+
 ```c
-#ifdef CONFIG_HAVE_ARCH_PFN_VALID		// 需要使能验证页帧有效的config
-int pfn_valid(unsigned long pfn)
-{
-    phys_addr_t addr = __pfn_to_phys(pfn);	// 页帧转物理地址
-
-    if (__phys_to_pfn(addr) != pfn)
-        return 0;
-    
-    return memblock_is_map_memory(__pfn_to_phys(pfn));	// memblock是内核初始化时候的分配器
-
-}
-EXPORT_SYMBOL(pfn_valid);
-#endif
-```
-
-2、映射连续的虚拟地址到物理页
-
-```
 /**
  *  vmap  -  map an array of pages into virtually contiguous space
  *  @pages:     array of page pointers
@@ -26,7 +9,7 @@ EXPORT_SYMBOL(pfn_valid);
  *  @prot:      page protection for the mapping
  *
  *  Maps @count pages from @pages into contiguous kernel virtual
- *  space.
+ *  space.       
  */
 void *vmap(struct page **pages, unsigned int count,
         unsigned long flags, pgprot_t prot)
@@ -51,5 +34,27 @@ void *vmap(struct page **pages, unsigned int count,
 
     return area->addr;
 }
+EXPORT_SYMBOL(vmap);
 ```
 
+2、释放连续虚拟地址对应的物理页，不能用于中断上下文
+
+```c
+/**
+ *  vunmap  -  release virtual mapping obtained by vmap()
+ *  @addr:      memory base address
+ *
+ *  Free the virtually contiguous memory area starting at @addr,
+ *  which was created from the page array passed to vmap().
+ *
+ *  Must not be called in interrupt context.
+ */
+void vunmap(const void *addr)
+{
+    BUG_ON(in_interrupt());
+    might_sleep();
+    if (addr)
+        __vunmap(addr, 0);
+}
+EXPORT_SYMBOL(vunmap);
+```
