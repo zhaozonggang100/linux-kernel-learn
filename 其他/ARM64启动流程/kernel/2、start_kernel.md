@@ -62,7 +62,11 @@ asmlinkage __visible void __init start_kernel(void)
     page_address_init();
     // 打印Linux开机信息
     pr_notice("%s", linux_banner);
-    // 根据bootloader传参以及设备树配置初始化command_line
+    /*
+    	比较重要的函数，会根据command_line初始化arch相关的结构
+    	内存：memblock、fixmap、ioremap等
+    	https://blog.csdn.net/GerryLee93/article/details/106476252?utm_medium=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1.nonecase&depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1.nonecase
+    */
     setup_arch(&command_line);
     /*   
      * Set up the the initial canary and entropy after arch
@@ -84,11 +88,26 @@ asmlinkage __visible void __init start_kernel(void)
     setup_command_line(command_line);
     // smp架构设置各个cpu的id，单核的是空操作
     setup_nr_cpu_ids();
+    /*
+    	https://blog.csdn.net/yin262/article/details/46787879
+    	smp中有效，为内存初始化准备，创建per-cpu变量
+    	所有cpu的变量是per-cpu数组中的一个成员
+    */
     setup_per_cpu_areas();
+    /*
+    	该函数初始化多核处理器系统中的处理器位码表
+    */
     smp_prepare_boot_cpu(); /* arch-specific boot-cpu hooks */
     boot_cpu_hotplug_init();
 
+    /*
+    	https://blog.csdn.net/liuhangtiant/article/details/80957313
+    	这里调用的时候系统处于SYSTEM_BOOTING状态，系统有全局的system_state变量代表当前系统的状态
+    	对于NUMA架构，每个节点的本地zone和remote zone都挂载到zonelist中
+    	内部会调用build_all_zonelists_init
+    */
     build_all_zonelists(NULL);
+    // 热插拔cpu使用
     page_alloc_init();
 
     pr_notice("Kernel command line: %s\n", boot_command_line);
@@ -107,11 +126,16 @@ asmlinkage __visible void __init start_kernel(void)
      * These use large bootmem allocations and must precede
      * kmem_cache_init()
      */
+    // printk buf
     setup_log_buf(0);
     pidhash_init();
+    // vfs的inode和dentry cache初始化
     vfs_caches_init_early();
     sort_main_extable();
     trap_init();
+    /*
+    	初始化内存分配器：buddy、sla|u|ob
+    */
     mm_init();
 
     ftrace_init();
@@ -154,6 +178,7 @@ asmlinkage __visible void __init start_kernel(void)
     tick_init();
     rcu_init_nohz();
     init_timers();
+    // 高精度定时器初始化
     hrtimers_init();
     softirq_init();
     timekeeping_init();
@@ -165,6 +190,7 @@ asmlinkage __visible void __init start_kernel(void)
     call_function_init();
     WARN(!irqs_disabled(), "Interrupts were enabled early\n");
     early_boot_irqs_disabled = false;
+    // 使能本地中断
     local_irq_enable();
 
     kmem_cache_init_late();
@@ -205,6 +231,7 @@ asmlinkage __visible void __init start_kernel(void)
         initrd_start = 0;
     }
 #endif
+    // 内核内存泄露检测，需要打开config
     kmemleak_init();
     debug_objects_mem_init();
     setup_per_cpu_pageset();
@@ -227,6 +254,10 @@ asmlinkage __visible void __init start_kernel(void)
     key_init();
     security_init();
     dbg_late_init();
+    /*
+    	很重要的函数
+    	
+    */
     vfs_caches_init();
     pagecache_init();
     signals_init();
