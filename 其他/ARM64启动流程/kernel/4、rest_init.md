@@ -144,6 +144,10 @@ static int __ref kernel_init(void *unused)
     rcu_end_inkernel_boot();
     place_marker("M - DRIVER Kernel Boot Done");
 
+    /*
+    	https://blog.csdn.net/kevin_hcy/article/details/17663341
+    	如果虚拟文件系统（initrd、ramdisk）中存在ramdisk_execute_command中定义的文件，则直接执行对应的初始化文件
+    */
     if (ramdisk_execute_command) {
         ret = run_init_process(ramdisk_execute_command);
         if (!ret)

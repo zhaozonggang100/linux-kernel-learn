@@ -11,12 +11,38 @@
 4、files_maxfiles_init
 5、mnt_init
 	https://www.cnblogs.com/awsqsh/articles/4358285.html
+	https://www.cnblogs.com/arnoldlu/p/10986583.html
 	1、初始化mnt_cache的slub缓存，vfs_mount
 	2、初始化mount_hashtable挂载哈希表
 	3、初始化mountpoint_hashtable挂载点哈希表
 	4、kernfs_init
 	5、sysfs_init：sysfs初始化
 	6、init_rootfs：注册虚拟根文件系统，registe_filesystem
+        int __init init_rootfs(void)
+        {   
+            int err = register_filesystem(&rootfs_fs_type);
+
+            if (err)
+                return err;
+
+            if (IS_ENABLED(CONFIG_TMPFS) && !saved_root_name[0] &&
+                (!root_fs_names || strstr(root_fs_names, "tmpfs"))) {
+                /*
+                	没有指定saved_root_name并且root_fs_names为tmpfs时候，初始化tmpfs文件系统
+                	初始化tmpfs文件系统。
+                */
+                err = shmem_init();
+                // 后面rootfs_mount()会需要判断是使用tmpfs还是ramfs作为文件系统类型
+                is_tmpfs = true;
+            } else {
+                err = init_ramfs_fs();	// 初始化ramfs
+            }
+
+            if (err)
+                unregister_filesystem(&rootfs_fs_type);
+
+            return err;
+        }
 	7、init_mount_tree：挂载虚拟根文件系统
 		static void __init init_mount_tree(void)
         {
@@ -25,10 +51,11 @@
             struct path root;
             struct file_system_type *type;
 
+        	// 获取rootfs对应的file_system_type，这里对应的是ramfs操作函数。
             type = get_fs_type("rootfs");
             if (!type)
                 panic("Can't find rootfs type");
-        	// 创建虚拟文件系统
+        	// 这里会调用mount_fs()，进而调用rootfs_fs_type->mount()，即rootfs_mount()
             mnt = vfs_kern_mount(type, 0, "rootfs", NULL);
             put_filesystem(type);
             if (IS_ERR(mnt))
@@ -46,9 +73,24 @@
             mnt->mnt_flags |= MNT_LOCKED;
 
             set_fs_pwd(current->fs, &root);
-        	// 将当前的文件系统盘配置为根文件系统
+        	// 将当前的文件系统盘配置为根文件系统，也就是ramfs设置为根文件系统
             set_fs_root(current->fs, &root);
         } 
+		
+		static struct dentry *rootfs_mount(struct file_system_type *fs_type,
+            int flags, const char *dev_name, void *data)
+        {   
+            static unsigned long once;
+            void *fill = ramfs_fill_super;
+
+            if (test_and_set_bit(0, &once))
+                return ERR_PTR(-ENODEV);
+
+            if (IS_ENABLED(CONFIG_TMPFS) && is_tmpfs)
+                fill = shmem_fill_super;
+
+            return mount_nodev(fs_type, flags, data, fill);
+        }
 6、bdev_cache_init：初始化并挂载bdevfs
 7、chrdev_init：字符设备相关
 ```
@@ -191,5 +233,11 @@ static int __init populate_rootfs(void)
      所以module_init会将函数放到initcall6.init段中
 */
 rootfs_initcall(populate_rootfs);
+```
+
+- ramdisk原理
+
+```c
+// https://www.cnblogs.com/arnoldlu/p/10986583.html
 ```
 
