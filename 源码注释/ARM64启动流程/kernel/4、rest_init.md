@@ -180,3 +180,106 @@ static int __ref kernel_init(void *unused)
 }
 ```
 
+### 4、kernel_init_freeable
+
+```c
+ 979 static noinline void __init kernel_init_freeable(void)
+ 980 {  
+ 981     /*
+ 982      * Wait until kthreadd is all set-up.
+ 983      */
+ 984     wait_for_completion(&kthreadd_done);
+ 985 
+ 986     /* Now the scheduler is fully set up and can do blocking allocations */
+ 987     gfp_allowed_mask = __GFP_BITS_MASK;
+ 988 
+ 989     /*
+ 990      * init can allocate pages on any node
+ 991      */
+ 992     set_mems_allowed(node_states[N_MEMORY]);
+ 993     /*
+ 994      * init can run on any cpu.
+ 995      */
+ 996     set_cpus_allowed_ptr(current, cpu_all_mask);
+ 997 
+ 998     cad_pid = task_pid(current);
+ 999 
+1000     smp_prepare_cpus(setup_max_cpus);
+1001    
+1002     do_pre_smp_initcalls();
+1003     lockup_detector_init();
+1004 
+    	 /*
+    	 	初始化boot cpu之外的cpu核
+    	 */
+1005     smp_init();
+1006     sched_init_smp();
+1007    
+1008     page_alloc_init_late();
+1009    
+    	 /*
+    	 	初始化内核module
+    	 */
+1010     do_basic_setup();
+1011    
+1012     /* Open the /dev/console on the rootfs, this should never fail */
+1013     if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
+1014         pr_err("Warning: unable to open an initial console.\n");
+1015        
+1016     (void) sys_dup(0);
+1017     (void) sys_dup(0);
+1018     /*
+1019      * check if there is an early userspace init.  If yes, let it do all
+1020      * the work
+1021      */
+1022 
+1023     if (!ramdisk_execute_command)
+1024         ramdisk_execute_command = "/init";
+1025 
+1026     if (sys_access((const char __user *) ramdisk_execute_command, 0) != 0) {
+1027         ramdisk_execute_command = NULL;
+1028         prepare_namespace();
+1029     }
+1030 
+1031     /*
+1032      * Ok, we have completed the initial bootup, and
+1033      * we're essentially up and running. Get rid of the
+1034      * initmem segments and start the user-mode stuff..
+1035      *
+1036      * rootfs is available now, try loading the public keys
+1037      * and default modules
+1038      */
+1039 
+1040     integrity_load_keys();
+1041     load_default_modules();
+1042 }
+```
+
+### 5、smp_init
+
+```c
+/*
+	这里初始化了boot cpu之外的cpu之后，后面会调用cpu_notifier注册的回调函数
+		1、workqueue注册的workqueue_cpu_up_callback
+*/
+566 /* Called by boot processor to activate the rest. */
+567 void __init smp_init(void)
+568 {
+569     unsigned int cpu;
+570 
+571     idle_threads_init();
+572 
+573     /* FIXME: This should be done in userspace --RR */
+574     for_each_present_cpu(cpu) {
+575         if (num_online_cpus() >= setup_max_cpus)
+576             break;
+577         if (!cpu_online(cpu))
+578             cpu_up(cpu);
+579     }
+580 
+581     /* Any cleanup work */
+582     smp_announce();
+583     smp_cpus_done(setup_max_cpus);
+584 }
+```
+

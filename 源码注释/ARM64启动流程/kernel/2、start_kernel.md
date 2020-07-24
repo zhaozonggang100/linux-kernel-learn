@@ -281,4 +281,3 @@ asmlinkage __visible void __init start_kernel(void)
     rest_init();
 }
 ```
-
