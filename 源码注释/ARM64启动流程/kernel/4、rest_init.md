@@ -207,6 +207,10 @@ static int __ref kernel_init(void *unused)
 1000     smp_prepare_cpus(setup_max_cpus);
 1001    
 1002     do_pre_smp_initcalls();
+     	 /*
+    		file：kernel/watchdog
+     	 	初始化softlockup检测
+     	 */
 1003     lockup_detector_init();
 1004 
     	 /*
