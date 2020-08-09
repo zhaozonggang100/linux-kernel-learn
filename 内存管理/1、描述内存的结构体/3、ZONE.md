@@ -39,7 +39,7 @@ include/linux/mmzone.h（kernel-4.4.138）
  349     long lowmem_reserve[MAX_NR_ZONES];
  350 
  351 #ifdef CONFIG_NUMA
- 352     int node;
+ 352     int node;  
  353 #endif
  354 
  355     /*
@@ -77,6 +77,7 @@ include/linux/mmzone.h（kernel-4.4.138）
  384 #endif /* CONFIG_NUMA */
  385 
  386     /* zone_start_pfn == zone_start_paddr >> PAGE_SHIFT */
+         // zone的第一个页框号-+
  387     unsigned long       zone_start_pfn;
  388 
  389     /*
@@ -174,6 +175,7 @@ include/linux/mmzone.h（kernel-4.4.138）
      	 */
  478     ZONE_PADDING(_pad1_)
  479     /* free areas of different sizes */
+         //11,空闲页框的组织结构
  480     struct free_area    free_area[MAX_ORDER];
  481 
  482     /* zone flags, see below */

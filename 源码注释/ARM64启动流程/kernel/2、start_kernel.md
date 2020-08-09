@@ -89,9 +89,10 @@ asmlinkage __visible void __init start_kernel(void)
     // smp架构设置各个cpu的id，单核的是空操作
     setup_nr_cpu_ids();
     /*
-    	https://blog.csdn.net/yin262/article/details/46787879
-    	smp中有效，为内存初始化准备，创建per-cpu变量
-    	所有cpu的变量是per-cpu数组中的一个成员
+    	函数(查看定义)给每个CPU分配内存，并拷贝.data.percpu段的数据. 为系统中的每个CPU的per_cpu变量申请空间. 
+在SMP系统中, setup_per_cpu_areas初始化源代码中(使用per_cpu宏)定义的静态per-cpu变量, 这种变量对系统中每个CPU都有一个独立的副本. 
+此类变量保存在内核二进制影像的一个独立的段中, setup_per_cpu_areas的目的就是为系统中各个CPU分别创建一份这些数据的副本
+在非SMP系统中这是一个空操作
     */
     setup_per_cpu_areas();
     /*
@@ -101,10 +102,9 @@ asmlinkage __visible void __init start_kernel(void)
     boot_cpu_hotplug_init();
 
     /*
-    	https://blog.csdn.net/liuhangtiant/article/details/80957313
-    	这里调用的时候系统处于SYSTEM_BOOTING状态，系统有全局的system_state变量代表当前系统的状态
-    	对于NUMA架构，每个节点的本地zone和remote zone都挂载到zonelist中
-    	内部会调用build_all_zonelists_init
+    	为系统中的zone建立后备zone的列表.
+    	所有zone的后备列表都在pglist_data->node_zonelists[0]中;
+		期间也对per-CPU变量boot_pageset做了初始化. 
     */
     build_all_zonelists(NULL);
     // 热插拔cpu使用
@@ -135,6 +135,8 @@ asmlinkage __visible void __init start_kernel(void)
     trap_init();
     /*
     	初始化内存分配器：buddy、sla|u|ob
+    	建立了内核的内存分配器, 其中通过mem_init停用bootmem分配器并迁移到实际的内存管理器
+    	(比如伙伴系统)，然后调用kmem_cache_init函数初始化内部小块内存区的分配器
     */
     mm_init();
 
@@ -193,6 +195,9 @@ asmlinkage __visible void __init start_kernel(void)
     // 使能本地中断
     local_irq_enable();
 
+    /*
+    	在kmem_cache_init之后, 完善分配器的缓存机制,　当前3个可用的内核内存分配器slab, slob, slub都会定义此函数
+    */
     kmem_cache_init_late();
 
     /*
@@ -231,9 +236,17 @@ asmlinkage __visible void __init start_kernel(void)
         initrd_start = 0;
     }
 #endif
-    // 内核内存泄露检测，需要打开config
+    /*
+    	Kmemleak工作于内核态，Kmemleak 提供了一种可选的内核泄漏检测，其方法类似于跟踪内存收集器。当独立的对象没有被释放时，其报告记录在 /sys/kernel/debug/kmemleak中, Kmemcheck能够帮助定位大多数内存错误的上下文
+    */
     kmemleak_init();
     debug_objects_mem_init();
+    /*
+    	初始化CPU高速缓存行, 为pagesets的第一个数组元素分配内存, 换句话说, 其实就是第一个
+    	系统处理器分配由于在分页情况下，每次存储器访问都要存取多级页表，这就大大降低了访问速
+    	度。所以，为了提高速度，在CPU中设置一个最近存取页面的高速缓存硬件机制，当进行存储器访
+    	问时，先检查要访问的页面是否在高速缓存中
+    */
     setup_per_cpu_pageset();
     numa_policy_init();
     if (late_time_init)
@@ -281,3 +294,118 @@ asmlinkage __visible void __init start_kernel(void)
     rest_init();
 }
 ```
+
+### 2、setup_arch
+
+```c
+272 void __init setup_arch(char **cmdline_p)
+273 {
+274     init_mm.start_code = (unsigned long) _text;
+275     init_mm.end_code   = (unsigned long) _etext;
+276     init_mm.end_data   = (unsigned long) _edata;
+277     init_mm.brk    = (unsigned long) _end;
+278 
+279     *cmdline_p = boot_command_line;
+280 
+281     early_fixmap_init();
+282     early_ioremap_init();
+283 
+    	/*
+    		1、从dts获取memory的信息（address-size对）
+    	*/
+284     setup_machine_fdt(__fdt_pointer);
+285 
+286     /*
+287      * Initialise the static keys early as they may be enabled by the
+288      * cpufeature code and early parameters.
+289      */
+290     jump_label_init();
+291     parse_early_param();
+292 
+293     /*
+294      * Unmask asynchronous aborts and fiq after bringing up possible
+295      * earlycon. (Report possible System Errors once we can report this
+296      * occurred).
+297      */
+298     local_daif_restore(DAIF_PROCCTX_NOIRQ);
+299 
+300     /*
+301      * TTBR0 is only used for the identity mapping at this stage. Make it
+302      * point to zero page to avoid speculatively fetching new entries.
+303      */
+304     cpu_uninstall_idmap();
+305 
+306     xen_early_init();
+307     efi_init();
+    
+        /*
+        	初始化memblock
+        	
+        	使用arm64_memblock_init来完成memblock机制的初始化工作, 至此memblock分配器
+        	接受系统中系统中内存的分配工作
+        */
+308     arm64_memblock_init();
+309 
+    	/*
+    		分页机制初始化
+    		
+    		调用paging_init来完成系统分页机制的初始化工作, 建立页表, 从而内核可以完成
+    		虚拟地址的分配和转换
+    	*/
+310     paging_init();
+311 
+312     acpi_table_upgrade();
+313 
+314     /* Parse the ACPI tables for possible boot-time configuration */
+315     acpi_boot_table_init();
+316 
+317     if (acpi_disabled)
+318         unflatten_device_tree();
+319 
+    	/*
+    		初始化内存管理
+    		
+    		最后调用bootmem_init来完成实现buddy内存管理所需要的工作
+    		始化内存数据结构包括内存节点, 内存域和页帧page
+    	*/
+320     bootmem_init();
+321 
+322     kasan_init();
+323 
+324     request_standard_resources();
+325 
+326     early_ioremap_reset();
+327 
+328     if (acpi_disabled)
+329         psci_dt_init();
+330     else
+331         psci_acpi_init();
+332 
+333     cpu_read_bootcpu_ops();
+334     smp_init_cpus();
+335     smp_build_mpidr_hash();
+336 
+337     /* Init percpu seeds for random tags after cpus are set up. */
+338     kasan_init_tags();
+339 
+340 #ifdef CONFIG_ARM64_SW_TTBR0_PAN
+341     /*
+342      * Make sure init_thread_info.ttbr0 always generates translation
+343      * faults in case uaccess_enable() is inadvertently called by the init
+344      * thread.
+345      */
+346     init_task.thread_info.ttbr0 = __pa_symbol(empty_zero_page);
+347 #endif
+348 
+349 #ifdef CONFIG_VT
+350     conswitchp = &dummy_con;
+351 #endif
+352     if (boot_args[1] || boot_args[2] || boot_args[3]) {
+353         pr_err("WARNING: x1-x3 nonzero in violation of boot protocol:\n"
+354             "\tx1: %016llx\n\tx2: %016llx\n\tx3: %016llx\n"
+355             "This indicates a broken bootloader or old kernel\n",
+356             boot_args[1], boot_args[2], boot_args[3]);
+357     }
+358 }
+```
+

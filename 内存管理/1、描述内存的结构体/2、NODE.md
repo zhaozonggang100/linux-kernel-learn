@@ -15,8 +15,11 @@ include/linux/mmzone.h（kernel-4.4.138）
  636  */
  637 struct bootmem_data;
  638 typedef struct pglist_data {
+         // 分别对应4种zone类型：ZONE_DMA、ZONE_DMA32、ZONE_NORMAL、ZONE_MOVABLE 
  639     struct zone node_zones[MAX_NR_ZONES];
+     	 // 用于分配页框时，查找从哪个zone分配
  640     struct zonelist node_zonelists[MAX_ZONELISTS];
+         // node_zones中有效zone的个数
  641     int nr_zones;
  642 #ifdef CONFIG_FLAT_NODE_MEM_MAP /* means !SPARSEMEM */
  643     struct page *node_mem_map;
@@ -40,10 +43,14 @@ include/linux/mmzone.h（kernel-4.4.138）
  661      */
  662     spinlock_t node_size_lock;
  663 #endif
+         //node的第一个页框号
  664     unsigned long node_start_pfn;
+         //node内的页框数，不包含洞
  665     unsigned long node_present_pages; /* total number of physical pages */
+         //node内的页框数，包含洞
  666     unsigned long node_spanned_pages; /* total size of physical page
  667                          range, including holes */
+ 		 //当前node的编号
  668     int node_id;
  669     wait_queue_head_t kswapd_wait;
  670     wait_queue_head_t pfmemalloc_wait;
