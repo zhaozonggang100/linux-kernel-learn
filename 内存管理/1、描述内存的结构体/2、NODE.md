@@ -22,7 +22,7 @@ include/linux/mmzone.h（kernel-4.4.138）
          // node_zones中有效zone的个数
  641     int nr_zones;
  642 #ifdef CONFIG_FLAT_NODE_MEM_MAP /* means !SPARSEMEM */
- 643     struct page *node_mem_map;
+ 643     struct page *node_mem_map;	// 该node管理的页面数组
  644 #ifdef CONFIG_PAGE_EXTENSION
  645     struct page_ext *node_page_ext;
  646 #endif

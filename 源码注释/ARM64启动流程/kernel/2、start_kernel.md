@@ -105,9 +105,11 @@ asmlinkage __visible void __init start_kernel(void)
     	为系统中的zone建立后备zone的列表.
     	所有zone的后备列表都在pglist_data->node_zonelists[0]中;
 		期间也对per-CPU变量boot_pageset做了初始化. 
+		建立并初始化结点和内存域的数据结构
+		【memory】
     */
     build_all_zonelists(NULL);
-    // 热插拔cpu使用
+    // 热插拔cpu使用的内存【memory】
     page_alloc_init();
 
     pr_notice("Kernel command line: %s\n", boot_command_line);
@@ -128,6 +130,7 @@ asmlinkage __visible void __init start_kernel(void)
      */
     // printk buf
     setup_log_buf(0);
+    // 根据低端内存页数和散列度，分配hash空间，并赋予pid_hash
     pidhash_init();
     // vfs的inode和dentry cache初始化
     vfs_caches_init_early();
