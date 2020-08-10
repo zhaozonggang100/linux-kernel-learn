@@ -938,5 +938,91 @@ https://www.cnblogs.com/linhaostudy/p/10058492.html
 5412 }
 ```
 
+### 6、节点、区域、page结构初始化完了，当kernel要使用内存的时候一般会通过buddy分配器分配，分配小于1个page的内存需要使用slub分配器，mm_init负责对应部分的初始化
+
+```c
+/*
+	file：init/main.c
+	功能：
+		1、释放内存到buddy
+		2、sla|u|ob初始化
+*/ 
+494  * Set up kernel memory allocators
+ 495  */
+ 496 static void __init mm_init(void)
+ 497 {  
+ 498     /*
+ 499      * page_ext requires contiguous pages,
+ 500      * bigger than MAX_ORDER unless SPARSEMEM.
+ 501      */
+ 502     page_ext_init_flatmem();
+    	 // 释放内存到buddy
+ 503     mem_init();
+    	 // sla|u|ob初始化
+ 504     kmem_cache_init();
+ 505     pgtable_init();
+ 506     vmalloc_init();
+ 507     ioremap_huge_init();
+ 508     /* Should be run before the first non-init thread is created */
+ 509     init_espfix_bsp();
+ 510     /* Should be run after espfix64 is set up. */
+ 511     pti_init();
+ 512 }
+```
+
+### 7、最后分配器初始化完成了，接着对slub的缓存初始化
+
+```c
+// 这个初始化与config选择的分配器（sla|u|ob）有关系
+
+/*
+	slab
+*/
+1319 void __init kmem_cache_init_late(void)
+1320 {
+1321     struct kmem_cache *cachep;
+1322 
+1323     slab_state = UP;
+1324 
+1325     /* 6) resize the head arrays to their final sizes */
+1326     mutex_lock(&slab_mutex);
+1327     list_for_each_entry(cachep, &slab_caches, list)
+1328         if (enable_cpucache(cachep, GFP_NOWAIT))
+1329             BUG();
+1330     mutex_unlock(&slab_mutex);
+1331     
+1332     /* Done! */
+1333     slab_state = FULL;
+1334 
+1335 #ifdef CONFIG_NUMA
+1336     /*
+1337      * Register a memory hotplug callback that initializes and frees
+1338      * node.
+1339      */
+1340     hotplug_memory_notifier(slab_memory_callback, SLAB_CALLBACK_PRI);
+1341 #endif
+1342 
+1343     /*
+1344      * The reap timers are started later, with a module init call: That part
+1345      * of the kernel is not yet operational.
+1346      */
+1347 }
+
+/*
+	slub
+*/
+4233 void __init kmem_cache_init_late(void)
+4234 {
+4235 }
+
+/*
+	slob
+*/
+658 void __init kmem_cache_init_late(void)
+659 {
+660     slab_state = FULL;
+661 }
+```
+
 
 
