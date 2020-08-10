@@ -17,14 +17,14 @@ include/linux/mmzone.h（kernel-4.4.138）
  638 typedef struct pglist_data {
          // 分别对应4种zone类型：ZONE_DMA、ZONE_DMA32、ZONE_NORMAL、ZONE_MOVABLE 
  639     struct zone node_zones[MAX_NR_ZONES];
-     	 // 用于分配页框时，查找从哪个zone分配
+     	 // 备用区域链表，从本节点分配不到内存可以从别的节点的zone中分配
  640     struct zonelist node_zonelists[MAX_ZONELISTS];
          // node_zones中有效zone的个数
  641     int nr_zones;
  642 #ifdef CONFIG_FLAT_NODE_MEM_MAP /* means !SPARSEMEM */
- 643     struct page *node_mem_map;	// 该node管理的页面数组
+ 643     struct page *node_mem_map;	// 该node管理的页面数组，用于非稀疏模型
  644 #ifdef CONFIG_PAGE_EXTENSION
- 645     struct page_ext *node_page_ext;
+ 645     struct page_ext *node_page_ext;	// 页的扩展属性
  646 #endif
  647 #endif
  648 #ifndef CONFIG_NO_BOOTMEM

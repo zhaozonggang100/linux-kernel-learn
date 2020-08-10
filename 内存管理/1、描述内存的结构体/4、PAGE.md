@@ -21,6 +21,15 @@ include/linux/mm_types.h
      		页的标志，匿名页、file page等
      	*/
  45     /* First double word block */
+     	/*
+     		flag位图：
+     			|[SECTION]|[NODE]|[ZONE]|[LAST_CPUID]||
+     			section：稀疏内存模型中的段编号
+     			node：节点编号
+     			zone：区域类型
+     		page_to_nid用来获取page对应的node的编号
+     		page_zonenum获取page对应的zone类型
+     	*/
  46     unsigned long flags;        /* Atomic flags, some possibly
  47                      * updated asynchronously */
  48     union {
