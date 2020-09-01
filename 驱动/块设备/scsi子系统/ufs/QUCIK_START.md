@@ -186,3 +186,21 @@ ufs中的每个lu的地址是独立的，主机端访问ufs时必须在UPIU中�
 ```
 
 ![](.\picture\boot-lu.jpg)
+
+### 5、UFS控制器
+
+- 1、作用
+
+```
+负责管理应用软件和ufs之间的接口
+```
+
+- 2、组成
+
+```
+UFS UTP controller (QTI specific) – Responsible for UTP layer functionality of the UFS controller
+UniPro controller (third party) – Responsible for UIC layer functionality of the UFS controller
+```
+
+
+
