@@ -36,7 +36,7 @@ UPIP：UFS protocal information units
 
 ### 2、ufs通讯架构
 
-![](D:\akon\note\akon\linux-kernel-learn\驱动\块设备\scsi子系统\ufs\picture\ufs-layers.jpg)
+![](.\picture\ufs-layers.jpg)
 
 ufs采用四层结构设计，从上到下依次为
 
@@ -103,17 +103,17 @@ ufs属于一种通用闪存规范，通信的两端包括host controller（一�
 
 - host与ufs设备连接
 
-![](D:\akon\note\akon\linux-kernel-learn\驱动\块设备\scsi子系统\ufs\picture\ufs与主机通信原理.png)
+![](.\picture\ufs与主机通信原理.png)
 
 - ufs内部结构
 
-![](D:\akon\note\akon\linux-kernel-learn\驱动\块设备\scsi子系统\ufs\picture\ufs-硬件原理图.png)
+![](.\picture\ufs-硬件原理图.png)
 
 ### 4、LUN
 
 - 1、ufs中lun的分布
 
-![](D:\akon\note\akon\linux-kernel-learn\驱动\块设备\scsi子系统\ufs\picture\LUN分区.png)
+![](.\picture\LUN分区.png)
 
 
 
@@ -139,11 +139,11 @@ read (10), red (16),该lu中读写数据，会校验合法性
 写普通lu时有cache，即主机数据到设备的内部buffer，设备就会回命令完成状态给主机。
 ```
 
-![](D:\akon\note\akon\linux-kernel-learn\驱动\块设备\scsi子系统\ufs\picture\welllu-command.jpg)
+![](.\picture\welllu-command.jpg)
 
 - 2、lun的组成
 
-![](D:\akon\note\akon\linux-kernel-learn\驱动\块设备\scsi子系统\ufs\picture\ufs-lun1.jpg)
+![](.\picture\ufs-lun1.jpg)
 
 lun是ufs内部独立的单元，一个lun一般由以下两部分组成
 
@@ -185,4 +185,4 @@ ufs中的每个lu的地址是独立的，主机端访问ufs时必须在UPIU中�
 	主机启动时（pbl），首先应该向ufs发送query，获取bBootLunEn属性，该属性标识当前活跃的boot lu	
 ```
 
-![](D:\akon\note\akon\linux-kernel-learn\驱动\块设备\scsi子系统\ufs\picture\boot-lu.jpg)
+![](.\picture\boot-lu.jpg)
