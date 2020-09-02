@@ -16,6 +16,14 @@ https://blog.csdn.net/shenjin_s/article/details/79761425?utm_medium=distribute.p
 
 
 
+ https://blog.csdn.net/don_chiang709/article/details/89313836?utm_medium=distribute.pc_relevant_download.none-task-blog-blogcommendfrombaidu-3.nonecase&depth_1-utm_source=distribute.pc_relevant_download.none-task-blog-blogcommendfrombaidu-3.nonecas （UFS协议栈）
+
+
+
+ https://so.csdn.net/so/search/s.do?q=ufs&t=blog&u=don_chiang709 （博主系列文章）
+
+
+
 ### 1、概述
 
 UFS是目前广泛应用于移动设备的闪存，传输速度默认1248MB/S，可以配置为4096MB/S
@@ -38,14 +46,16 @@ UPIP：UFS protocal information units
 
 ![](.\picture\ufs-layers.jpg)
 
-ufs采用四层结构设计，从上到下依次为
+![](.\picture\ufs-layer1.jpg)
 
-- a、 应用层
+ufs采用四层结构设计，从上到下依次为，只有传输层是JEDEC自己的
+
+- a、 应用层，也是命令层，是T10的
 
 ```
 包含了任务管理（task manager）、ufs command set layer（ucs）子层
 1、任务管理
-	处理command queue来控制任务，比如abort
+	处理command queue来控制任务，比如abort终止之前的command
 2、ucs
 	处理command（比如读写），主要将scsi command转换为原生的ufs command
 3、设备管理（device manager）
@@ -55,7 +65,7 @@ ufs采用四层结构设计，从上到下依次为
 		UIO-SAP：比如通过UIC（位于传输层和数据链路层之间作为抽象接口为上层提供服务）对host进行reset
 ```
 
-- b、 传输层（UTP）
+- b、 传输层（UTP），符合JEDEC
 
 ```
 1、传输层类似tcp/ip的传输层，host端的传输层对应device端的传输层，将应用层（device manager和application）的命令转换为UFS protocol information units (UPIU) 
@@ -77,7 +87,7 @@ ufs采用四层结构设计，从上到下依次为
 	最终的数据传输是通过DMA
 ```
 
-- c、uic（ufs interconnter layer）
+- c、uic（ufs interconnter layer），符合MIPI，这两层统称为互连层
 
 ```
 1、为传输层和应用层提供服务接口，包括两个服务
@@ -86,10 +96,17 @@ ufs采用四层结构设计，从上到下依次为
 	UIO_SAP – Transports queries and control of device management	
 			  服务于设备管理层
 
-2、该层主要包含了UFS四层中的下面两层
+2、该层主要包含了UFS四层中的下面两层（MIPI移动行业处理器接口）
 	c. 数据链路层（MIPI UniPro）
+		unipro本身也是一个完成的协议栈，如下图
+		传输层UFS只支持CPort0
+		ufs无需网络层
+		数据链路层（L2）支持流控、CRC生成和校验、重传机制等，UFS利用了UniPro的数据链路层为主机和设备之间通讯提供可靠的连接。
 	d. 物理层（MIPI M-PHY）
+		使用8/10编码、差分信号串行数据传输。数据传输分高低速模式，每种模式下又有几种不同的速度档。
 ```
+
+![](./picture/unipro-layer.jpg)
 
 ### 3、物理连接
 
