@@ -38,6 +38,10 @@ LUN：logical unity num
 UTP：ufs transfer protocal
 
 UPIP：UFS protocal information units
+
+SAP：service access points
+
+HBA：host bus adapter
 ```
 
 
@@ -121,6 +125,7 @@ ufs属于一种通用闪存规范，通信的两端包括host controller（一�
 - host与ufs设备连接
 
 ![](.\picture\ufs与主机通信原理.png)
+![](.\picture\ufs-layers2.jpg)
 
 - ufs内部结构
 
