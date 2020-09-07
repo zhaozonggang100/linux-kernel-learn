@@ -24,6 +24,10 @@ https://blog.csdn.net/shenjin_s/article/details/79761425?utm_medium=distribute.p
 
 
 
+ https://www.pianshen.com/article/85621103730/ （ufshci driver）
+
+
+
 ### 1、概述
 
 UFS是目前广泛应用于移动设备的闪存，传输速度默认1248MB/S，可以配置为4096MB/S
@@ -42,6 +46,15 @@ UPIP：UFS protocal information units
 SAP：service access points
 
 HBA：host bus adapter
+
+DME：device management entity
+
+CPort：CPort is a SAP on the UniPro transport layer (L4) within a device that is used for
+connection-oriented data transmission
+
+UTRD：ufs transfer request desc
+
+UTMD：ufs task management desc
 ```
 
 
@@ -211,18 +224,32 @@ ufs中的每个lu的地址是独立的，主机端访问ufs时必须在UPIU中�
 
 ### 5、UFS控制器
 
-- 1、作用
+![](.\picture\ufshci.jpg)
+![](.\picture\ufshci1.jpg)
+![](.\picture\ufs-controller-wrapper.jpg)
+
+- 1、概述
 
 ```
-负责管理应用软件和ufs之间的接口
+负责管理应用软件和ufs之间的接口，上图左边是ufshci，cpu通过AHB和axi总线访问ufshci控制器，ufs暴露给Linux得只是一个ip，都需要通过ufshci提供得接口去访问
+
+ufs控制器在物理上连接MPHY，Linux无法直接操作MPHY（？？）
 ```
 
 - 2、组成
 
 ```
-UFS UTP controller (QTI specific) – Responsible for UTP layer functionality of the UFS controller
-UniPro controller (third party) – Responsible for UIC layer functionality of the UFS controller
+1、host controller capabilities（vendor specific）
+2、UTP transfer request
+	UTP Transfer Request这一块的寄存器提供了指向UTRD （UTP Transfer Request Descriptor）List的指针地址
+	UTRD有0~31个，即32个，意味着UFS拥有32个slot，SOC层可以同时接受32个请求
+	32个UTRD是物理连续的，这点很重要，因为连续，可以直接根据slot序号直接获取到UTRD
+	UTRD里面包含了UPIU的地址，UPIU的size是固定的，否则AXI怎么能准确的把response信息填充到对应请求的Response UPIU里面呢
+3、UFS UTP controller (QTI specific) – Responsible for UTP layer functionality of the UFS controller
+4、UniPro controller (third party) – Responsible for UIC layer functionality of the UFS controller
 ```
 
+- 3、ufshci常用得寄存器
+![](.\picture\ufshci-register.jpg)
 
 
