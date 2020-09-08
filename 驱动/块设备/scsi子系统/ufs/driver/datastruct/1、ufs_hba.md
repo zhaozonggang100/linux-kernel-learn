@@ -61,19 +61,19 @@
  774  * @scsi_block_reqs_cnt: reference counting for scsi block requests
  775  */
   776 struct ufs_hba {
- 777     void __iomem *mmio_base;
+ 777     void __iomem *mmio_base;			// ufshci所有寄存器基地址
  778
  779     /* Virtual memory reference */
- 780     struct utp_transfer_cmd_desc *ucdl_base_addr;
- 781     struct utp_transfer_req_desc *utrdl_base_addr;
- 782     struct utp_task_req_desc *utmrdl_base_addr;
+ 780     struct utp_transfer_cmd_desc *ucdl_base_addr;		// ufs命令描述符基地址
+ 781     struct utp_transfer_req_desc *utrdl_base_addr;		// ufs传输请求描述符基地址
+ 782     struct utp_task_req_desc *utmrdl_base_addr;		// ufs任务管理请求描述符基地址
  783
- 784     /* DMA memory reference */
+ 784     /* DMA memory reference */		// 上面三个地址转换后的dma地址
  785     dma_addr_t ucdl_dma_addr;
  786     dma_addr_t utrdl_dma_addr;
  787     dma_addr_t utmrdl_dma_addr;
  788
- 789     struct Scsi_Host *host;
+ 789     struct Scsi_Host *host;		// ufshci包装的scsi host
  790     struct device *dev;
  791     /*
  792      * This field is to keep a reference to "scsi_device" corresponding to
@@ -194,7 +194,8 @@
  907
  908     unsigned int quirks;    /* Deviations from standard UFSHCI spec. */
  909
- 910     wait_queue_head_t tm_wq;
+     	 // 下面两个等待队列头是用于task manage的
+ 910     wait_queue_head_t tm_wq;	
  911     wait_queue_head_t tm_tag_wq;
  912     unsigned long tm_condition;
  913     unsigned long tm_slots_in_use;
@@ -247,7 +248,7 @@
  960     int req_abort_count;
  961
  962     /* Number of lanes available (1 or 2) for Rx/Tx */
- 963     u32 lanes_per_direction;
+ 963     u32 lanes_per_direction;		// 不设置默认是2
  964
  965     /* Gear limits */
  966     u32 limit_tx_hs_gear;

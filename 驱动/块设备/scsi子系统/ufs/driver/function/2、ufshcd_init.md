@@ -27,10 +27,12 @@ file：drivers/scsi/ufs/ufshcd.c
 11106     /* Set descriptor lengths to specification defaults */
 11107     ufshcd_def_desc_sizes(hba);
 11108
+    	  // 电压时钟的初始化
 11109     err = ufshcd_hba_init(hba);
 11110     if (err)
 11111         goto out_error;
 11112
+    	  // 通过ufshcd_readl读取ufs的capabilities
 11113     /* Read capabilities registers */
 11114     ufshcd_hba_capabilities(hba);
 11115
@@ -42,9 +44,9 @@ file：drivers/scsi/ufs/ufshcd.c
 11121         (hba->ufs_version != UFSHCI_VERSION_11) &&
 11122         (hba->ufs_version != UFSHCI_VERSION_20) &&
 11123         (hba->ufs_version != UFSHCI_VERSION_21) &&
-11124         (hba->ufs_version != UFSHCI_VERSION_30))
+11124         (hba->ufs_version != UFSHCI_VERSION_30))			
 11125         dev_warn(hba->dev, "invalid UFS version 0x%x\n",
-11126             hba->ufs_version);
+11126             hba->ufs_version);	// 3.0
 11127
 11128     /* Get Interrupt bit mask per version */
 11129     hba->intr_mask = ufshcd_get_intr_mask(hba);
@@ -52,6 +54,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11131     /* Enable debug prints */
 11132     hba->ufshcd_dbg_print = DEFAULT_UFSHCD_DBG_PRINT_EN;
 11133
+    	  // 将ufshci的dma能力通知到内核
 11134     err = ufshcd_set_dma_mask(hba);
 11135     if (err) {
 11136         dev_err(hba->dev, "set dma mask failed\n");
@@ -59,6 +62,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11138     }
 11139
 11140     /* Allocate memory for host memory space */
+    	  // 给ufshci的hba结构中的ucdl_dma_addr、utrdl_dma_addr、utmrdl_base_addr、lrb分配地址空间
 11141     err = ufshcd_memory_alloc(hba);
 11142     if (err) {
 11143         dev_err(hba->dev, "Memory allocation failed\n");
@@ -68,6 +72,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11147     /* Configure LRB */
 11148     ufshcd_host_memory_configure(hba);
 11149
+    	  // ufs scsi host的相关参数初始化
 11150     host->can_queue = hba->nutrs;
 11151     host->cmd_per_lun = hba->nutrs;
 11152     host->max_id = UFSHCD_MAX_ID;
@@ -100,6 +105,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11179     /* Initialize device management tag acquire wait queue */
 11180     init_waitqueue_head(&hba->dev_cmd.tag_wq);
 11181
+    	  // 初始化时钟
 11182     ufshcd_init_clk_gating(hba);
 11183     ufshcd_init_hibern8_on_idle(hba);
 11184
@@ -118,6 +124,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11197     mb();
 11198
 11199     /* IRQ registration */
+    	  // 申请ufshci中断
 11200     err = devm_request_irq(dev, irq, ufshcd_intr, IRQF_SHARED,
 11201                 dev_name(dev), hba);
 11202     if (err) {
@@ -127,6 +134,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11206         hba->is_irq_enabled = true;
 11207     }
 11208
+    	  // 将ufshci添加到scsi
 11209     err = scsi_add_host(host, hba->dev);
 11210     if (err) {
 11211         dev_err(hba->dev, "scsi_add_host failed\n");

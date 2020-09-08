@@ -17,7 +17,9 @@ file：drivers/scsi/ufs/ufshcd-platform.c
 492     int irq, err;
 493     struct device *dev = &pdev->dev;
 494
+    	// 从platform_device中获取resource
 495     mem_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+    	// 从上一步返回得resource中获取ufshci寄存器的基地址
 496     mmio_base = devm_ioremap_resource(dev, mem_res);
 497     if (IS_ERR(mmio_base)) {
 498         err = PTR_ERR(mmio_base);
@@ -32,8 +34,7 @@ file：drivers/scsi/ufs/ufshcd-platform.c
 507     }
 508
      	/*
-     		分配struct ufs_hba，该结构体包含了device driver、irq、voltage regulator
-information and so on
+     		通过scsi_host_alloc申请一个scsi host并赋值给hba的成员
      	*/
 509     err = ufshcd_alloc_host(dev, &hba);	// alloc hba resource
 510     if (err) {
@@ -41,11 +42,10 @@ information and so on
 512         goto out;
 513     }
 514
+    	// 初始化hba变体
 515     hba->var = var;
 516
-    	/*
-    		通过dts获取时钟
-    	*/
+    	// 通过dts获取时钟
 517     err = ufshcd_parse_clock_info(hba);
 518     if (err) {
 519         dev_err(&pdev->dev, "%s: clock parse failed %d\n",
@@ -53,9 +53,7 @@ information and so on
 521         goto dealloc_host;
 522     }
     
-    	/*
-    		通过dts获取电压
-    	*/
+		// 从device tree初始化电压信息，ufs的工作需要三个电源电压vcc, vccq, vccq2
 523     err = ufshcd_parse_regulator_info(hba);
 524     if (err) {
 525         dev_err(&pdev->dev, "%s: regulator init failed %d\n",
@@ -89,6 +87,7 @@ information and so on
 553     if (!dev->dma_mask)
 554         dev->dma_mask = &dev->coherent_dma_mask;
 555
+    	// 获取每个方向lane的个数
 556     ufshcd_init_lanes_per_dir(hba);
 557
 558     err = ufshcd_init(hba, mmio_base, irq);
