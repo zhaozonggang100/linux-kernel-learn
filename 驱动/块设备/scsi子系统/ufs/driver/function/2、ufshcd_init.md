@@ -207,6 +207,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11278
 11279     ufshcd_cmd_log_init(hba);
 11280
+    	  // 异步
 11281     async_schedule(ufshcd_async_scan, hba);
 11282
 11283     ufsdbg_add_debugfs(hba);
@@ -227,5 +228,237 @@ file：drivers/scsi/ufs/ufshcd.c
 11298     return err;
 11299 }
 11300 EXPORT_SYMBOL_GPL(ufshcd_init);
+```
+
+
+
+```c
+/*
+	异步初始化hba
+*/ 
+9091 static void ufshcd_async_scan(void *data, async_cookie_t cookie)
+ 9092 {
+ 9093     struct ufs_hba *hba = (struct ufs_hba *)data;
+ 9094
+ 9095     /*
+ 9096      * Don't allow clock gating and hibern8 enter for faster device
+ 9097      * detection.
+ 9098      */
+ 9099     ufshcd_hold_all(hba);
+ 9100     ufshcd_probe_hba(hba);
+ 9101     ufshcd_release_all(hba);
+ 9102
+ 9103     ufshcd_extcon_register(hba);
+ 9104 }
+```
+
+
+
+
+
+```c
+ 8772 /**
+ 8773  * ufshcd_probe_hba - probe hba to detect device and initialize
+ 8774  * @hba: per-adapter instance
+ 8775  *
+ 8776  * Execute link-startup and verify device initialization
+ 8777  */
+ 8778 static int ufshcd_probe_hba(struct ufs_hba *hba)
+ 8779 {
+ 8780     struct ufs_dev_desc card = {0};
+ 8781     int ret;
+ 8782     ktime_t start = ktime_get();
+ 8783
+ 8784 reinit:
+     	  // 建立host与device的连接，里面会去调用vops中实现的startup_link,目前ufs-sprd.c中未实现
+ 8785     ret = ufshcd_link_startup(hba);
+ 8786     if (ret)
+ 8787         goto out;
+ 8788
+ 8789     /* Debug counters initialization */
+ 8790     ufshcd_clear_dbg_ufs_stats(hba);
+ 8791     /* set the default level for urgent bkops */
+ 8792     hba->urgent_bkops_lvl = BKOPS_STATUS_PERF_IMPACT;
+ 8793     hba->is_urgent_bkops_lvl_checked = false;
+ 8794
+ 8795     /* UniPro link is active now */
+     	  // 更改目前的ufs状态信息hba->uic_link_state为UIC_LINK_ACTIVE_STATE
+ 8796     ufshcd_set_link_active(hba);
+ 8797
+     	  // 发送nop_out指令，确认连接状态是否正确
+ 8798     ret = ufshcd_verify_dev_init(hba);
+ 8799     if (ret)
+ 8800         goto out;
+ 8801
+     	  // 发送set_flag指令及read_flag，确认初始化状态是否正确
+ 8802     ret = ufshcd_complete_dev_init(hba);
+ 8803     if (ret)
+ 8804         goto out;
+ 8805
+ 8806     /* clear any previous UFS device information */
+ 8807     memset(&hba->dev_info, 0, sizeof(hba->dev_info));
+ 8808
+ 8809     /* cache important parameters from device descriptor for later use */
+ 8810     ret = ufs_read_device_desc_data(hba);
+ 8811     if (ret)
+ 8812         goto out;
+ 8813
+ 8814     /* Init check for device descriptor sizes */
+ 8815     ufshcd_init_desc_sizes(hba);
+ 8816
+ 8817     ret = ufs_get_device_desc(hba, &card);
+  8818     if (ret) {
+ 8819         dev_err(hba->dev, "%s: Failed getting device info. err = %d\n",
+ 8820             __func__, ret);
+ 8821         goto out;
+ 8822     }
+ 8823
+ 8824     if (card.wspecversion >= 0x300 && !hba->reinit_g4_rate_A) {
+ 8825         unsigned long flags;
+ 8826         int err;
+ 8827
+ 8828         hba->reinit_g4_rate_A = true;
+ 8829
+ 8830         err = ufshcd_vops_full_reset(hba);
+ 8831         if (err)
+ 8832             dev_warn(hba->dev, "%s: full reset returned %d\n",
+ 8833                  __func__, err);
+ 8834
+ 8835         err = ufshcd_reset_device(hba);
+ 8836         if (err)
+ 8837             dev_warn(hba->dev, "%s: device reset failed. err %d\n",
+ 8838                  __func__, err);
+ 8839
+ 8840         /* Reset the host controller */
+ 8841         spin_lock_irqsave(hba->host->host_lock, flags);
+ 8842         ufshcd_hba_stop(hba, false);
+ 8843         spin_unlock_irqrestore(hba->host->host_lock, flags);
+ 8844
+ 8845         err = ufshcd_hba_enable(hba);
+ 8846         if (err)
+ 8847             goto out;
+ 8848
+ 8849         goto reinit;
+ 8850     }
+ 8851
+     	  // 获取device_descriptor、Manufacturer Name String Descriptor并初始化hba->dev_quirks
+ 8852     ufs_fixup_device_setup(hba, &card);
+     	  // 根据unipro的版本设置tune ufs协议层的参数
+ 8853     ufshcd_tune_unipro_params(hba);
+ 8854
+ 8855     ufshcd_apply_pm_quirks(hba);
+ 8856     if (card.wspecversion < 0x300) {
+ 8857         ret = ufshcd_set_vccq_rail_unused(hba,
+ 8858             (hba->dev_info.quirks & UFS_DEVICE_NO_VCCQ) ?
+ 8859             true : false);
+ 8860         if (ret)
+ 8861             goto out;
+ 8862     }
+ 8863
+ 8864     /* UFS device is also active now */
+ 8865     ufshcd_set_ufs_dev_active(hba);
+  8866    ufshcd_force_reset_auto_bkops(hba);
+ 8867
+ 8868     if (ufshcd_get_max_pwr_mode(hba)) {
+ 8869         dev_err(hba->dev,
+ 8870             "%s: Failed getting max supported power mode\n",
+ 8871             __func__);
+ 8872     } else {
+ 8873         ufshcd_get_dev_ref_clk_gating_wait(hba, &card);
+ 8874
+ 8875         /*
+ 8876          * Set the right value to bRefClkFreq before attempting to
+ 8877          * switch to HS gears.
+ 8878          */
+ 8879         ufshcd_set_dev_ref_clk(hba);
+ 8880         ret = ufshcd_config_pwr_mode(hba, &hba->max_pwr_info.info);
+ 8881         if (ret) {
+ 8882             dev_err(hba->dev, "%s: Failed setting power mode, err = %d\n",
+ 8883                     __func__, ret);
+ 8884             goto out;
+ 8885         }
+ 8886     }
+ 8887
+ 8888     /*
+ 8889      * bActiveICCLevel is volatile for UFS device (as per latest v2.1 spec)
+ 8890      * and for removable UFS card as well, hence always set the parameter.
+ 8891      * Note: Error handler may issue the device reset hence resetting
+ 8892      *       bActiveICCLevel as well so it is always safe to set this here.
+ 8893      */
+ 8894     ufshcd_set_active_icc_lvl(hba);
+ 8895
+ 8896     /* set the state as operational after switching to desired gear */
+ 8897     hba->ufshcd_state = UFSHCD_STATE_OPERATIONAL;
+ 8898
+ 8899     /*
+ 8900      * If we are in error handling context or in power management callbacks
+ 8901      * context, no need to scan the host
+ 8902      */
+ 8903     if (!ufshcd_eh_in_progress(hba) && !hba->pm_op_in_progress) {
+ 8904         bool flag;
+ 8905
+ 8906         if (!ufshcd_query_flag_retry(hba, UPIU_QUERY_OPCODE_READ_FLAG,
+ 8907                 QUERY_FLAG_IDN_PWR_ON_WPE, &flag))
+ 8908             hba->dev_info.f_power_on_wp_en = flag;
+ 8909
+ 8910         /* Add required well known logical units to scsi mid layer */
+ 8911         if (ufshcd_scsi_add_wlus(hba))
+ 8912             goto out;
+  8913
+ 8914         /* lower VCC voltage level */
+ 8915         ufshcd_set_low_vcc_level(hba, &card);
+ 8916
+ 8917         /* Initialize devfreq after UFS device is detected */
+ 8918         if (ufshcd_is_clkscaling_supported(hba)) {
+ 8919             memcpy(&hba->clk_scaling.saved_pwr_info.info,
+ 8920                 &hba->pwr_info,
+ 8921                 sizeof(struct ufs_pa_layer_attr));
+ 8922             hba->clk_scaling.saved_pwr_info.is_valid = true;
+ 8923             hba->clk_scaling.is_scaled_up = true;
+ 8924             if (!hba->devfreq) {
+ 8925                 ret = ufshcd_devfreq_init(hba);
+ 8926                 if (ret)
+ 8927                     goto out;
+ 8928             }
+ 8929             hba->clk_scaling.is_allowed = true;
+ 8930         }
+ 8931
+ 8932         scsi_scan_host(hba->host);
+ 8933         pm_runtime_put_sync(hba->dev);
+ 8934     }
+ 8935
+ 8936     /*
+ 8937      * Enable auto hibern8 if supported, after full host and
+ 8938      * device initialization.
+ 8939      */
+ 8940     if (ufshcd_is_auto_hibern8_supported(hba) &&
+ 8941         hba->hibern8_on_idle.is_enabled)
+ 8942         ufshcd_set_auto_hibern8_timer(hba,
+ 8943                       hba->hibern8_on_idle.delay_ms);
+ 8944 out:
+ 8945     if (ret) {
+ 8946         ufshcd_set_ufs_dev_poweroff(hba);
+ 8947         ufshcd_set_link_off(hba);
+ 8948         if (hba->extcon) {
+ 8949             if (!ufshcd_is_card_online(hba))
+ 8950                 ufsdbg_clr_err_state(hba);
+ 8951             ufshcd_set_card_offline(hba);
+ 8952         }
+ 8953     } else if (hba->extcon) {
+ 8954         ufshcd_set_card_online(hba);
+ 8955     }
+ 8956
+ 8957     /*
+ 8958      * If we failed to initialize the device or the device is not
+ 8959      * present, turn off the power/clocks etc.
+ 8960      */
+ 8961     if (ret && !ufshcd_eh_in_progress(hba) && !hba->pm_op_in_progress)
+ 8962         pm_runtime_put_sync(hba->dev);
+ 8963
+ 8964     trace_ufshcd_init(dev_name(hba->dev), ret,
+ 8965         ktime_to_us(ktime_sub(ktime_get(), start)),
+ 8966         hba->curr_dev_pwr_mode, hba->uic_link_state);
+ 8967     return ret;
+ 8968 }
 ```
 
