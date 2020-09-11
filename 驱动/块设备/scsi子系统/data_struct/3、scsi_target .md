@@ -27,7 +27,7 @@
 297                          * a 3F/0E UA, other devices on
 298                          * the same target will also. */
 299     /* commands actually active on LLD. */
-300     atomic_t        target_busy;
+300     atomic_t        target_busy;	// 已经派发给目标节点（低层驱动）的命令数
 301     atomic_t        target_blocked;	//目标节点阻塞计数器
 302
 303     /*
@@ -38,9 +38,11 @@
 308     unsigned int        max_target_blocked;
 309 #define SCSI_DEFAULT_TARGET_BLOCKED 3
 310
-311     char            scsi_level;
+311     char            scsi_level;	// 这个scsi目标节点支持的scsi规范级别
 312     enum scsi_target_state  state;
+    	// 指向scsi目标节点专有数据的指针
 313     void            *hostdata; /* available to low-level driver */
+    	// 用于传输层
 314     unsigned long       starget_data[0]; /* for the transport */
 315     /* starget_data must be the last element!!!! */
 316 } __attribute__((aligned(sizeof(unsigned long))));
