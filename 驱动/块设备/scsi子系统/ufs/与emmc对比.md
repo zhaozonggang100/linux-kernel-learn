@@ -6,14 +6,24 @@ https://blog.csdn.net/shenjin_s/article/details/79761425?utm_medium=distribute.p
 https://blog.csdn.net/LUOHUATINGYUSHENG/article/details/94624348?utm_medium=distribute.pc_relevant.none-task-blog-BlogCommendFromMachineLearnPai2-1.channel_param&depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromMachineLearnPai2-1.channel_param
 ```
 
-
 ### 1、速度
+
+- spec中定义
+
+```
+ufs3.0：单lane理论最大速度是11.6Gbps（1.5GB/s），一般都是双通道的，所以最大速度是23.2Gbps（2.9GB/s）
+ufs2.0：单lane理论最大速度是3.0的一半
+```
+
+
 
 ![](.\picture\ufs与emmc速度对比.png)
 
 ![](.\picture\ufs-emmc-speed.jpg)
 
 ![](.\picture\ufs-emmc-speed1.jpg)
+
+![](.\picture\ufs-emmc-speed2.jpg)
 
 ### 2、电源
 
