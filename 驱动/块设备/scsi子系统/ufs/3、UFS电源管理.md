@@ -2,6 +2,8 @@
 
 https://blog.csdn.net/don_chiang709/article/details/89314552
 
+https://blog.csdn.net/G_Crisis/article/details/83508468?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522160006997919195188317779%2522%252C%2522scm%2522%253A%252220140713.130102334.pc%255Fall.%2522%257D&request_id=160006997919195188317779&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~first_rank_ecpm_v3~pc_rank_v2-2-83508468.first_rank_ecpm_v3_pc_rank_v2&utm_term=ufs+clk&spm=1018.2118.3001.4187（上下电）
+
 ### 1、ufs电源框架
 
 ![](./picture/ufs-vcc.jpg)
