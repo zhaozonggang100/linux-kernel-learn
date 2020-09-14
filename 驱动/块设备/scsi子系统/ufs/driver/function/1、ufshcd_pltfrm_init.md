@@ -1,4 +1,213 @@
 ```c
+2172 /**
+2173  * ufs_qcom_init - bind phy with controller
+2174  * @hba: host controller instance
+2175  *
+2176  * Binds PHY with controller and powers up PHY enabling clocks
+2177  * and regulators.
+2178  *
+2179  * Returns -EPROBE_DEFER if binding fails, returns negative error
+2180  * on phy power up failure and returns zero on success.
+2181  */
+/*
+	该函数会在后面的ufshcd_init-->ufshcd_hba_init-->ufshcd_variant_hba_init-->ufshcd_vops_init
+	1327 static inline int ufshcd_vops_init(struct ufs_hba *hba)
+    1328 {
+    1329     if (hba->var && hba->var->vops && hba->var->vops->init)
+    1330         return hba->var->vops->init(hba);
+    1331     return 0;
+    1332 }
+    ufs controller电压时钟初始化完成之后调用该函数建立了ufs controller和phy的连接，这样scsi低层驱动就可以通过ufs controller再通过mipi phy 和 ufs device通信了
+*/
+2182 static int ufs_qcom_init(struct ufs_hba *hba)
+2183 {
+2184     int err;
+2185     struct device *dev = hba->dev;
+2186     struct platform_device *pdev = to_platform_device(dev);
+2187     struct ufs_qcom_host *host;
+2188     struct resource *res;
+2189
+2190     host = devm_kzalloc(dev, sizeof(*host), GFP_KERNEL);
+2191     if (!host) {
+2192         err = -ENOMEM;
+2193         dev_err(dev, "%s: no memory for qcom ufs host\n", __func__);
+2194         goto out;
+2195     }
+2196
+2197     /* Make a two way bind between the qcom host and the hba */
+2198     host->hba = hba;
+2199     spin_lock_init(&host->ice_work_lock);
+2200
+    	 // hba->priv = variant;
+2201     ufshcd_set_variant(hba, host);
+2202
+2203     err = ufs_qcom_ice_get_dev(host);
+2204     if (err == -EPROBE_DEFER) {
+2205         /*
+2206          * UFS driver might be probed before ICE driver does.
+2207          * In that case we would like to return EPROBE_DEFER code
+2208          * in order to delay its probing.
+2209          */
+2210         dev_err(dev, "%s: required ICE device not probed yet err = %d\n",
+2211             __func__, err);
+2212         goto out_variant_clear;
+2213
+2214     } else if (err == -ENODEV) {
+2215         /*
+2216          * ICE device is not enabled in DTS file. No need for further
+2217          * initialization of ICE driver.
+2218          */
+2219         dev_warn(dev, "%s: ICE device is not enabled",
+2220             __func__);
+2221     } else if (err) {
+2222         dev_err(dev, "%s: ufs_qcom_ice_get_dev failed %d\n",
+2223             __func__, err);
+2224         goto out_variant_clear;
+2225     } else {
+2226         hba->host->inlinecrypt_support = 1;
+2227     }
+2228
+2229     host->generic_phy = devm_phy_get(dev, "ufsphy");
+2230
+2231     if (host->generic_phy == ERR_PTR(-EPROBE_DEFER)) {
+2232         /*
+2233          * UFS driver might be probed before the phy driver does.
+2234          * In that case we would like to return EPROBE_DEFER code.
+2235          */
+2236         err = -EPROBE_DEFER;
+2237         dev_warn(dev, "%s: required phy device. hasn't probed yet. err = %d\n",
+2238             __func__, err);
+2239         goto out_variant_clear;
+2240     } else if (IS_ERR(host->generic_phy)) {
+2241         err = PTR_ERR(host->generic_phy);
+2242         dev_err(dev, "%s: PHY get failed %d\n", __func__, err);
+2243         goto out_variant_clear;
+2244     }
+2245
+2246     err = ufs_qcom_pm_qos_init(host);
+2247     if (err)
+2248         dev_info(dev, "%s: PM QoS will be disabled\n", __func__);
+2249
+2250     /* restore the secure configuration */
+2251     ufs_qcom_update_sec_cfg(hba, true);
+2252
+2253     err = ufs_qcom_bus_register(host);
+2254     if (err)
+2255         goto out_variant_clear;
+2256
+2257     ufs_qcom_get_controller_revision(hba, &host->hw_ver.major,
+2258         &host->hw_ver.minor, &host->hw_ver.step);
+2259
+2260     /*
+2261      * for newer controllers, device reference clock control bit has
+2262      * moved inside UFS controller register address space itself.
+2263      */
+2264     if (host->hw_ver.major >= 0x02) {
+2265         host->dev_ref_clk_ctrl_mmio = hba->mmio_base + REG_UFS_CFG1;
+2266         host->dev_ref_clk_en_mask = BIT(26);
+2267     } else {
+2268         /* "dev_ref_clk_ctrl_mem" is optional resource */
+2269         res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+2270         if (res) {
+2271             host->dev_ref_clk_ctrl_mmio =
+2272                     devm_ioremap_resource(dev, res);
+2273             if (IS_ERR(host->dev_ref_clk_ctrl_mmio)) {
+2274                 dev_warn(dev,
+2275                     "%s: could not map dev_ref_clk_ctrl_mmio, err %ld\n",
+2276                     __func__,
+2277                     PTR_ERR(host->dev_ref_clk_ctrl_mmio));
+2278                 host->dev_ref_clk_ctrl_mmio = NULL;
+2279             }
+2280             host->dev_ref_clk_en_mask = BIT(5);
+2281         }
+2282     }
+2283
+2284     /* update phy revision information before calling phy_init() */
+2285     ufs_qcom_phy_save_controller_version(host->generic_phy,
+2286         host->hw_ver.major, host->hw_ver.minor, host->hw_ver.step);
+2287
+2288     err = ufs_qcom_parse_reg_info(host, "qcom,vddp-ref-clk",
+2289                       &host->vddp_ref_clk);
+2290     phy_init(host->generic_phy);
+2291
+2292     if (host->vddp_ref_clk) {
+2293         err = ufs_qcom_enable_vreg(dev, host->vddp_ref_clk);
+2294         if (err) {
+2295             dev_err(dev, "%s: failed enabling ref clk supply: %d\n",
+2296                 __func__, err);
+2297             goto out_unregister_bus;
+2298         }
+2299     }
+2300
+2301     err = ufs_qcom_init_lane_clks(host);
+2302     if (err)
+2303         goto out_disable_vddp;
+2304
+2305     ufs_qcom_parse_lpm(host);
+2306     if (host->disable_lpm)
+2307         pm_runtime_forbid(host->hba->dev);
+2308     ufs_qcom_set_caps(hba);
+2309     ufs_qcom_advertise_quirks(hba);
+2310
+2311     ufs_qcom_set_bus_vote(hba, true);
+2312     ufs_qcom_setup_clocks(hba, true, POST_CHANGE);
+2313
+2314     host->dbg_print_en |= UFS_QCOM_DEFAULT_DBG_PRINT_EN;
+2315     ufs_qcom_get_default_testbus_cfg(host);
+2316     err = ufs_qcom_testbus_config(host);
+2317     if (err) {
+2318         dev_warn(dev, "%s: failed to configure the testbus %d\n",
+2319                 __func__, err);
+2320         err = 0;
+2321     }
+2322
+2323     ufs_qcom_save_host_ptr(hba);
+2324
+2325     goto out;
+2326
+2327 out_disable_vddp:
+2328     if (host->vddp_ref_clk)
+2329         ufs_qcom_disable_vreg(dev, host->vddp_ref_clk);
+2330 out_unregister_bus:
+2331     phy_exit(host->generic_phy);
+2332     msm_bus_scale_unregister_client(host->bus_vote.client_handle);
+2333 out_variant_clear:
+2334     devm_kfree(dev, host);
+2335     ufshcd_set_variant(hba, NULL);
+2336 out:
+2337     return err;
+2338 }
+
+// file：drivers/scsi/ufs/ufs-qcom.c
+2791 /**
+2792  * struct ufs_hba_qcom_vops - UFS QCOM specific variant operations
+2793  *
+2794  * The variant operations configure the necessary controller and PHY
+2795  * handshake during initialization.
+2796  */
+2797 static struct ufs_hba_variant_ops ufs_hba_qcom_vops = {
+2798     .init                   = ufs_qcom_init,
+2799     .exit                   = ufs_qcom_exit,
+2800     .get_ufs_hci_version    = ufs_qcom_get_ufs_hci_version,
+2801     .clk_scale_notify   = ufs_qcom_clk_scale_notify,
+2802     .setup_clocks           = ufs_qcom_setup_clocks,
+2803     .hce_enable_notify      = ufs_qcom_hce_enable_notify,
+2804     .link_startup_notify    = ufs_qcom_link_startup_notify,
+2805     .pwr_change_notify  = ufs_qcom_pwr_change_notify,
+2806     .apply_dev_quirks   = ufs_qcom_apply_dev_quirks,
+2807     .suspend        = ufs_qcom_suspend,
+2808     .resume         = ufs_qcom_resume,
+2809     .full_reset     = ufs_qcom_full_reset,
+2810     .update_sec_cfg     = ufs_qcom_update_sec_cfg,
+2811     .get_scale_down_gear    = ufs_qcom_get_scale_down_gear,
+2812     .set_bus_vote       = ufs_qcom_set_bus_vote,
+2813     .dbg_register_dump  = ufs_qcom_dump_dbg_regs,
+2814 #ifdef CONFIG_DEBUG_FS
+2815     .add_debugfs        = ufs_qcom_dbg_add_debugfs,
+2816 #endif
+2817 };
+
+
 file：drivers/scsi/ufs/ufshcd-platform.c
 
 479 /**

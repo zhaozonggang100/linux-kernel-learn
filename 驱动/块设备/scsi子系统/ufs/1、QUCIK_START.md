@@ -59,6 +59,8 @@ UTMD：ufs task management desc
 MMIO：memory map io，ufshci寄存器在Linux中虚拟地址映射
 
 ucd：ufs command desc
+
+POR：power on reset
 ```
 
 

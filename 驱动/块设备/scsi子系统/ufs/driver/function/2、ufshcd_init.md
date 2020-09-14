@@ -1,5 +1,5 @@
 ```c
-file：drivers/scsi/ufs/ufshcd.c
+// file：drivers/scsi/ufs/ufshcd.c
 
 11083 /**
 11084  * ufshcd_init - Driver initialization routine
@@ -27,7 +27,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11106     /* Set descriptor lengths to specification defaults */
 11107     ufshcd_def_desc_sizes(hba);
 11108
-    	  // 电压时钟的初始化
+    	  // 前面从dts获取了各种ufs controller的信息，这里电压时钟的初始化，并bind mipi-phy，接着从utp以下的功能就打通了
 11109     err = ufshcd_hba_init(hba);
 11110     if (err)
 11111         goto out_error;
@@ -76,7 +76,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11150     host->can_queue = hba->nutrs;
 11151     host->cmd_per_lun = hba->nutrs;
 11152     host->max_id = UFSHCD_MAX_ID;
-11153     host->max_lun = UFS_MAX_LUNS;
+11153     host->max_lun = UFS_MAX_LUNS;		// 0xc100 + 0x7F
 11154     host->max_channel = UFSHCD_MAX_CHANNEL;
 11155     host->unique_id = host->host_no;
 11156     host->max_cmd_len = MAX_CDB_SIZE;
@@ -154,6 +154,10 @@ file：drivers/scsi/ufs/ufshcd.c
 11225         hba->reinit_g4_rate_A = true;
 11226
 11227     /* Host controller enable */
+    	  /*
+    	  		使能ufs controller，并且把 Host Controller Enable bit置1
+    	  		到这一步，ufs的m-phy、uni-pro,ufs device已经初始化完成了，并且ufs m-phy进入休眠状态
+    	  */
 11228     err = ufshcd_hba_enable(hba);
 11229     if (err) {
 11230         dev_err(hba->dev, "Host controller enable failed\n");
@@ -162,6 +166,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11233         goto out_remove_scsi_host;
 11234     }
 11235
+    	  // 检测ufs controller是否支持动态时钟调整，支持的话创建对应的work和sys节点，测试系统中存在
 11236     if (ufshcd_is_clkscaling_supported(hba)) {
 11237         char wq_name[sizeof("ufs_clkscaling_00")];
 11238
@@ -193,6 +198,7 @@ file：drivers/scsi/ufs/ufshcd.c
 11264                             UIC_LINK_HIBERN8_STATE);
 11265
 11266     /* Hold auto suspend until async scan completes */
+    	  // 坚持auto suspend状态直到异步扫描完成
 11267     pm_runtime_get_sync(dev);
 11268
 11269     ufshcd_init_latency_hist(hba);
@@ -233,6 +239,143 @@ file：drivers/scsi/ufs/ufshcd.c
 
 
 ```c
+// file：drivers/scsi/ufs/ufshcd.c
+
+ 9852 static int ufshcd_hba_init(struct ufs_hba *hba)
+ 9853 {
+ 9854     int err;
+ 9855
+ 9856     /*
+ 9857      * Handle host controller power separately from the UFS device power
+ 9858      * rails as it will help controlling the UFS host controller power
+ 9859      * collapse easily which is different than UFS device power collapse.
+ 9860      * Also, enable the host controller power before we go ahead with rest
+ 9861      * of the initialization here.
+ 9862      */
+ 9863     err = ufshcd_init_hba_vreg(hba);
+ 9864     if (err)
+ 9865         goto out;
+ 9866
+ 9867     err = ufshcd_setup_hba_vreg(hba, true);
+ 9868     if (err)
+ 9869         goto out;
+ 9870
+ 9871     err = ufshcd_init_clocks(hba);
+ 9872     if (err)
+ 9873         goto out_disable_hba_vreg;
+ 9874
+ 9875     err = ufshcd_enable_clocks(hba);
+ 9876     if (err)
+ 9877         goto out_disable_hba_vreg;
+ 9878
+ 9879     err = ufshcd_init_vreg(hba);
+ 9880     if (err)
+ 9881         goto out_disable_clks;
+ 9882
+ 9883     err = ufshcd_setup_vreg(hba, true);
+ 9884     if (err)
+ 9885         goto out_disable_clks;
+ 9886
+ 9887     err = ufshcd_variant_hba_init(hba);
+ 9888     if (err)
+ 9889         goto out_disable_vreg;
+ 9890
+ 9891     hba->is_powered = true;
+ 9892     goto out;
+ 9893
+ 9894 out_disable_vreg:
+ 9895     ufshcd_setup_vreg(hba, false);
+ 9896 out_disable_clks:
+ 9897     ufshcd_disable_clocks(hba, false);
+ 9898 out_disable_hba_vreg:
+ 9899     ufshcd_setup_hba_vreg(hba, false);
+ 9900 out:
+ 9901     return err;
+ 9902 }
+```
+
+
+
+```c
+ 5765 /**
+ 5766  * ufshcd_hba_enable - initialize the controller
+ 5767  * @hba: per adapter instance
+ 5768  *
+ 5769  * The controller resets itself and controller firmware initialization
+ 5770  * sequence kicks off. When controller is ready it will set
+ 5771  * the Host Controller Enable bit to 1.
+ 5772  *
+ 5773  * Returns 0 on success, non-zero value on failure
+ 5774  */
+ 5775 static int ufshcd_hba_enable(struct ufs_hba *hba)
+ 5776 {
+ 5777     int retry;
+ 5778
+ 5779     /*
+ 5780      * msleep of 1 and 5 used in this function might result in msleep(20),
+ 5781      * but it was necessary to send the UFS FPGA to reset mode during
+ 5782      * development and testing of this driver. msleep can be changed to
+ 5783      * mdelay and retry count can be reduced based on the controller.
+ 5784      */
+     	  // 1、如果ufs controller被激活了，先写对应寄存器disable了ufs controller
+ 5785     if (!ufshcd_is_hba_active(hba))
+ 5786         /* change controller state to "reset state" */
+ 5787         ufshcd_hba_stop(hba, true);
+ 5788
+ 5789     /* UniPro link is disabled at this point */
+     	  // #define ufshcd_set_link_off(hba) ((hba)->uic_link_state = UIC_LINK_OFF_STATE)
+     	  // 2、关ufs controller到unipro的连接
+ 5790     ufshcd_set_link_off(hba);
+ 5791
+     	  // 3、ufs设备闪存配置，上电，并使能lane（通道）
+ 5792     ufshcd_vops_hce_enable_notify(hba, PRE_CHANGE);
+ 5793
+ 5794     /* start controller initialization sequence */
+     	  // 4、顺序的初始化ufs controller
+ 5795     ufshcd_hba_start(hba);
+ 5796
+ 5797     /*
+ 5798      * To initialize a UFS host controller HCE bit must be set to 1.
+ 5799      * During initialization the HCE bit value changes from 1->0->1.
+ 5800      * When the host controller completes initialization sequence
+ 5801      * it sets the value of HCE bit to 1. The same HCE bit is read back
+ 5802      * to check if the controller has completed initialization sequence.
+ 5803      * So without this delay the value HCE = 1, set in the previous
+ 5804      * instruction might be read back.
+ 5805      * This delay can be changed based on the controller.
+ 5806      */
+  5807     msleep(1);
+ 5808
+ 5809     /* wait for the host controller to complete initialization */
+     	  // 5、等待ufs controller初始化完成
+ 5810     retry = 10;
+ 5811     while (ufshcd_is_hba_active(hba)) {
+ 5812         if (retry) {
+ 5813             retry--;
+ 5814         } else {
+ 5815             dev_err(hba->dev,
+ 5816                 "Controller enable failed\n");
+ 5817             return -EIO;
+ 5818         }
+ 5819         msleep(5);
+ 5820     }
+ 5821
+ 5822     /* enable UIC related interrupts */
+     	  // 6、写寄存器使能uic中断
+ 5823     ufshcd_enable_intr(hba, UFSHCD_UIC_MASK);
+ 5824	
+     	  // 7、检测ufs PHY是否从disable状态切换到HIBERN8（休眠）状态，因为刚初始化完的UFS M-PHY应该处于休眠状态
+ 5825     ufshcd_vops_hce_enable_notify(hba, POST_CHANGE);
+ 5826
+ 5827     return 0;
+ 5828 }
+```
+
+
+
+
+
+```c
 /*
 	异步初始化hba
 */ 
@@ -245,6 +388,7 @@ file：drivers/scsi/ufs/ufshcd.c
  9097      * detection.
  9098      */
  9099     ufshcd_hold_all(hba);
+    	  // hba（host bus adapter）开始探测设备
  9100     ufshcd_probe_hba(hba);
  9101     ufshcd_release_all(hba);
  9102
@@ -270,7 +414,7 @@ file：drivers/scsi/ufs/ufshcd.c
  8782     ktime_t start = ktime_get();
  8783
  8784 reinit:
-     	  // 建立host与device的连接，里面会去调用vops中实现的startup_link,目前ufs-sprd.c中未实现
+     	  // 1、初始化unipro（ufs数据链路层）
  8785     ret = ufshcd_link_startup(hba);
  8786     if (ret)
  8787         goto out;
@@ -306,6 +450,7 @@ file：drivers/scsi/ufs/ufshcd.c
  8814     /* Init check for device descriptor sizes */
  8815     ufshcd_init_desc_sizes(hba);
  8816
+     	  // 读取ufs 设备描述符
  8817     ret = ufs_get_device_desc(hba, &card);
   8818     if (ret) {
  8819         dev_err(hba->dev, "%s: Failed getting device info. err = %d\n",
@@ -313,6 +458,7 @@ file：drivers/scsi/ufs/ufshcd.c
  8821         goto out;
  8822     }
  8823
+     	  // 正常不应该走下面流程
  8824     if (card.wspecversion >= 0x300 && !hba->reinit_g4_rate_A) {
  8825         unsigned long flags;
  8826         int err;
@@ -394,6 +540,7 @@ file：drivers/scsi/ufs/ufshcd.c
  8900      * If we are in error handling context or in power management callbacks
  8901      * context, no need to scan the host
  8902      */
+     	  // 如果正常的话，就会进入ufs的scsi扫描阶段
  8903     if (!ufshcd_eh_in_progress(hba) && !hba->pm_op_in_progress) {
  8904         bool flag;
  8905
