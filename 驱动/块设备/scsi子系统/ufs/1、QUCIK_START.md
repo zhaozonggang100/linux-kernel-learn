@@ -61,6 +61,10 @@ MMIO：memory map io，ufshci寄存器在Linux中虚拟地址映射
 ucd：ufs command desc
 
 POR：power on reset
+
+TMR：task management request，用于utp层
+
+RTT：READY TO TRANSFER UPIU
 ```
 
 
