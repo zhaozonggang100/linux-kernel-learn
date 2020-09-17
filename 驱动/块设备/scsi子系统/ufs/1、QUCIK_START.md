@@ -65,6 +65,8 @@ POR：power on reset
 TMR：task management request，用于utp层
 
 RTT：READY TO TRANSFER UPIU
+
+RMMI：Reference M-PHY Module Interface 
 ```
 
 
