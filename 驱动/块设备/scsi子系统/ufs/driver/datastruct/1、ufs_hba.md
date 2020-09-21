@@ -64,9 +64,9 @@
  777     void __iomem *mmio_base;			// ufshci所有寄存器基地址
  778
  779     /* Virtual memory reference */
- 780     struct utp_transfer_cmd_desc *ucdl_base_addr;		// ufs命令描述符基地址
- 781     struct utp_transfer_req_desc *utrdl_base_addr;		// ufs传输请求描述符基地址
- 782     struct utp_task_req_desc *utmrdl_base_addr;		// ufs任务管理请求描述符基地址
+ 780     struct utp_transfer_cmd_desc *ucdl_base_addr;		// ufs命令描述符基地址，被UTRD管理
+ 781     struct utp_transfer_req_desc *utrdl_base_addr;		// UTRD地址，ufshcd规定有32个UTRD
+ 782     struct utp_task_req_desc *utmrdl_base_addr;		// ufs任务管理请求描述符基地址，UTRMD
  783
  784     /* DMA memory reference */		// 上面三个地址转换后的dma地址
  785     dma_addr_t ucdl_dma_addr;

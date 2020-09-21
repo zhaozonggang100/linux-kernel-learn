@@ -1,4 +1,20 @@
+
+
 ```c
+430 /**
+431  * struct request_desc_header - Descriptor Header common to both UTRD and UTMRD
+432  * @dword0: Descriptor Header DW0
+433  * @dword1: Descriptor Header DW1
+434  * @dword2: Descriptor Header DW2
+435  * @dword3: Descriptor Header DW3
+436  */
+437 struct request_desc_header {
+438     __le32 dword_0;
+439     __le32 dword_1;
+440     __le32 dword_2;
+441     __le32 dword_3;
+442 };
+
 444 /**
 445  * struct utp_transfer_req_desc - UTRD structure
 446  * @header: UTRD header DW-0 to DW-3
