@@ -1,7 +1,14 @@
 参考：
 
-```
+```html
 https://www.cnblogs.com/linhaostudy/p/10058492.html
+https://zhuanlan.zhihu.com/p/207001939?utm_source=wechat_timeline
+https://blog.csdn.net/rikeyone/article/details/86496229
+https://blog.csdn.net/juS3Ve/article/details/80656701（内存模型）
+http://www.voidcn.com/article/p-qtnltdel-up.html（CONFIG_SPARSEMEM_VMEMMAP）
+https://blog.csdn.net/ooonebook/article/details/52690132（vmlinux.ld.S）
+https://www.cnblogs.com/arnoldlu/p/10526814.html(memblock)
+https://blog.csdn.net/snail_coder/article/details/94383185(memblock1)
 ```
 
 
