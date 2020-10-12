@@ -9,6 +9,7 @@ http://www.voidcn.com/article/p-qtnltdel-up.html（CONFIG_SPARSEMEM_VMEMMAP）
 https://blog.csdn.net/ooonebook/article/details/52690132（vmlinux.ld.S）
 https://www.cnblogs.com/arnoldlu/p/10526814.html(memblock)
 https://blog.csdn.net/snail_coder/article/details/94383185(memblock1)
+https://blog.csdn.net/liuhangtiant/article/details/81268669?utm_source=blogxgwz5&biz_id=102&utm_term=kmem_cache_init&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduweb~default-4-81268669&spm=1018.2118.3001.4187（kmem_cache_init）
 ```
 
 
