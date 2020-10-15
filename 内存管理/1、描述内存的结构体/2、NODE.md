@@ -53,7 +53,7 @@ include/linux/mmzone.h（kernel-4.4.138）
  		 //当前node的编号
  668     int node_id;
  669     wait_queue_head_t kswapd_wait;
- 670     wait_queue_head_t pfmemalloc_wait;
+ 670     wait_queue_head_t pfmemalloc_wait;	// 在当前节点上分配内存时如果页面不足，进程被挂载到该节点的内存分配等待队列上，等该节点的kswapd进程交换内存满足时唤醒该节点上等待分配内存的进程
  671     struct task_struct *kswapd; /* Protected by
  672                        mem_hotplug_begin/end() */
  673     int kswapd_max_order;

@@ -50,7 +50,7 @@ include/linux/mmzone.h（kernel-4.4.138）
  360 
  361     struct pglist_data  *zone_pgdat;
      	 /*
-     	 	per-cpu高速缓存
+     	 	per-cpu高速缓存，减少自旋锁的竞争
      	 */
  362     struct per_cpu_pageset __percpu *pageset;
  363
@@ -165,7 +165,7 @@ include/linux/mmzone.h（kernel-4.4.138）
  471      * primary users of these fields, and in mm/page_alloc.c
  472      * free_area_init_core() performs the initialization of them.
  473      */
- 474     wait_queue_head_t   *wait_table;
+ 474     wait_queue_head_t   *wait_table;	// 避免在zone所在节点上内存不足时进程分配内存阻塞在等待队列上被唤醒后出现惊群现象，该域是node中zone分配页面等待队列的哈希表
  475     unsigned long       wait_table_hash_nr_entries;
  476     unsigned long       wait_table_bits;
  477 
