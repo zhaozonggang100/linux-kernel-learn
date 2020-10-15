@@ -67,6 +67,12 @@ TMR：task management request，用于utp层
 RTT：READY TO TRANSFER UPIU
 
 RMMI：Reference M-PHY Module Interface 
+
+SBC:SCSI BLOCK COMMAND
+
+SPC:SCSI Primary Commands
+
+SAM:SCSI Architecture Model 
 ```
 
 
