@@ -39,6 +39,8 @@ UIC：ufs interface controller
 
 LUN：logical unity num
 
+UAT：UFS Application Layer 
+
 UTP：ufs transfer protocal
 
 UPIP：UFS protocal information units
@@ -73,6 +75,26 @@ SBC:SCSI BLOCK COMMAND
 SPC:SCSI Primary Commands
 
 SAM:SCSI Architecture Model 
+
+UCS：UFS Command Set 
+
+UIC：UFS InterConnect Layer
+
+UIO_SAP：UIC IO control Service Access Point
+
+CDB：Command Descriptor Blocks
+
+SBC：SCSI Block Commands
+
+SPC：SCSI Primary Commands
+
+SDU：Service Data Unit
+
+SID：Segment ID
+
+T_PDU：MIPI Unipro Protocol Data Unit
+
+T_SDU：MIPI Unipro protocol Service Data Unit
 ```
 
 
