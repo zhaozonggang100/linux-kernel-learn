@@ -10,7 +10,7 @@
 https://www.jianshu.com/p/faf82e400aa6
 ```
 
-
+- 3、iozone主要是基于文件系统的IO性能测试，不支持基于裸设备的IO测试
 
 ### 2、ubuntu安装
 
