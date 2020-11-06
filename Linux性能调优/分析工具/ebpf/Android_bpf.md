@@ -66,20 +66,38 @@ adeb prepare --full --kernelsrc /path/to/kernel-source/   // 指定自己的kern
 You need kernel 4.9 or newer. Anything less needs backports. Your kernel needs
 to be built with the following config options at the minimum:
 ​```
-CONFIG_KPROBES=y
-CONFIG_KPROBE_EVENT=y
-CONFIG_BPF_SYSCALL=y
+CONFIG_HAVE_KPROBES=y
+CONFIG_KPROBES=y					 # 支持kprobe探针
+CONFIG_KPROBE_EVENT=y				 # 支持kprobe探针事件
+CONFIG_BPF_SYSCALL=y				 # 支持bpf系统调用
+CONFIG_BPF_JIT=y				     # 支持bpf程序just in time
+CONFIG_IKHEADERS=m					 # bcc工具需要使用内核头文件
 ​```
 Optionally,
 ​```
-CONFIG_UPROBES=y
-CONFIG_UPROBE_EVENTS=y
+CONFIG_UPROBES=y					 # 用户态探针
+CONFIG_UPROBE_EVENTS=y				 # 用户态探针
+CONFIG_HAVE_SYSCALL_TRACEPOINTS=y	 # tracepoint 探针使用
+CONFIG_TRACEPOINTS=y				 # tracepoint 探针使用
 ​```
 Additionally, for the criticalsection BCC tracer to work, you need:
 ​```
 CONFIG_DEBUG_PREEMPT=y
 CONFIG_PREEMPTIRQ_EVENTS=y
 ​```
+
+diff --git a/kernel/gen_kheaders.sh b/kernel/gen_kheaders.sh
+index 9a34e1d9b..db8bca831 100755
+--- a/kernel/gen_kheaders.sh
++++ b/kernel/gen_kheaders.sh
+@@ -85,7 +85,7 @@ done | cpio --quiet -pd $cpio_dir >/dev/null 2>&1
+ 
+ # Remove comments except SDPX lines
+ find $cpio_dir -type f -print0 |
+-       xargs -0 -P8 -n1 perl -pi -e 'BEGIN {undef $/;}; s/\/\*((?!SPDX).)*?\*\///smg;'
++    xargs -0 -n1 perl -pi -e 'BEGIN {undef $/;}; s/\/\*((?!SPDX).)*?\*\///smg;'
+ 
+ tar -Jcf $tarfile -C $cpio_dir/ . > /dev/null
 ```
 
 4、进入adeb  shell环境，登录到开发板的debian上
