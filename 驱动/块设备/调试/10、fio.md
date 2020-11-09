@@ -4,6 +4,8 @@ fio是测试磁盘性能的比较好用的工具，主要测试iops
 
 下载源码地址：https://brick.kernel.dk/snaps/
 
+https://fio.readthedocs.io/en/latest/fio_doc.html
+
 ### 2、aarch64源码编译
 
 - 1、./configure --cpu=aarch64 --cc=aarch64-linux-gnu-gcc
