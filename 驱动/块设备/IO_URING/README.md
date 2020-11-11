@@ -105,15 +105,15 @@ rw=randrw：测试随机读写
 iodepth：应用同一时刻发送多少io给内核
 ```
 
-./fio -bs=4k -ioengine=io_uring -iodepth=1 -direct=1 -rw=randrw -time_based  -runtime=600  -refill_buffers -norandommap -randrepeat=0 -group_reporting -name=fio-randrw-lat --size=1G -filename=./fio_test_file --output=fio_io_uring_result  -io_submit_mode=offload -hipri -sqthread_poll -sqthread_poll-cpu
+./fio -bs=4k -ioengine=io_uring -iodepth=1 -direct=1 -rw=randrw -time_based  -runtime=600  -refill_buffers -norandommap -randrepeat=0 -group_reporting -name=fio-randrw-lat --size=1G -filename=./fio_test_file --output=fio_io_uring_result  -io_submit_mode=offload -option=hipri -sqthread_poll -sqthread_poll-cpu
 
 ```
  -io_submit_mode=offload：开启submission offload 模式
- -hipri：在块设备层支持io polled模式
- -fixedbufs：一开始就映射所有io，能有效的降低io延时
- -registerfiles：
- -sqthread_poll：
- -sqthread_poll-cpu：
+ -hipri=0|1：在块设备层支持io polled模式
+ -fixedbufs=0|1：一开始就映射所有io，能有效的降低io延时
+ -registerfiles=0|1：
+ -sqthread_poll=0|1：
+ -sqthread_poll-cpu=0|1：
 ```
 
 
