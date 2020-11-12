@@ -60,10 +60,10 @@ sudo apt-get install qemu-user-static debootstrap
 
 ```
 adeb prepare --full  // 这样可能会因为内核版本和机器上的不一致而警告，可以忽略
-adeb prepare --full --kernelsrc /path/to/kernel-source/   // 指定自己的kernel路径，这样adeb中的kernel版本和机器本地的一致，开机不会报警告
+adeb prepare --full --kernelsrc /path/to/kernel-source/   // 指定自己的kernel路径，这样adeb中的kernel版本和机器本地的一致，开机不会报警告,kernel路径为out目录下，不要有软链接
 
 要使机器本地的内核和adeb中的内核版本一致，需要对自己本地的内核做如下配置：
-You need kernel 4.9 or newer. Anything less needs backports. Your kernel needs
+1、You need kernel 4.9 or newer. Anything less needs backports. Your kernel needs
 to be built with the following config options at the minimum:
 ​```
 CONFIG_HAVE_KPROBES=y
@@ -71,7 +71,7 @@ CONFIG_KPROBES=y					 # 支持kprobe探针
 CONFIG_KPROBE_EVENT=y				 # 支持kprobe探针事件
 CONFIG_BPF_SYSCALL=y				 # 支持bpf系统调用
 CONFIG_BPF_JIT=y				     # 支持bpf程序just in time
-CONFIG_IKHEADERS=m					 # bcc工具需要使用内核头文件
+CONFIG_IKHEADERS=y					 # bcc工具需要使用内核头文件
 ​```
 Optionally,
 ​```
@@ -86,7 +86,7 @@ CONFIG_DEBUG_PREEMPT=y
 CONFIG_PREEMPTIRQ_EVENTS=y
 ​```
 
-diff --git a/kernel/gen_kheaders.sh b/kernel/gen_kheaders.sh
+2、diff --git a/kernel/gen_kheaders.sh b/kernel/gen_kheaders.sh
 index 9a34e1d9b..db8bca831 100755
 --- a/kernel/gen_kheaders.sh
 +++ b/kernel/gen_kheaders.sh
@@ -98,6 +98,22 @@ index 9a34e1d9b..db8bca831 100755
 +    xargs -0 -n1 perl -pi -e 'BEGIN {undef $/;}; s/\/\*((?!SPDX).)*?\*\///smg;'
  
  tar -Jcf $tarfile -C $cpio_dir/ . > /dev/null
+ 
+ 3、android/build/soong
+ diff --git a/ui/build/paths/config.go b/ui/build/paths/config.go
+index 9996fab..4cf3b87 100644
+--- a/ui/build/paths/config.go
++++ b/ui/build/paths/config.go
+@@ -77,6 +77,7 @@ var Configuration = map[string]PathConfig{
+        "bash":     Allowed,
+        "bc":       Allowed,
+        "bzip2":    Allowed,
++    "cpio":     Allowed,
+        "date":     Allowed,
+        "dd":       Allowed,
+        "diff":     Allowed,
+        
+ 4、编译环境需要realpath工具
 ```
 
 4、进入adeb  shell环境，登录到开发板的debian上
