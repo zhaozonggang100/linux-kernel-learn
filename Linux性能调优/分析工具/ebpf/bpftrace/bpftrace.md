@@ -61,6 +61,24 @@ docker run -ti -v /usr/src:/usr/src:ro \
 
 ` bpftrace -e 'tracepoint:syscalls:sys_enter_openat { printf("%s %s\n", comm, str(args->filename)); }' `
 
+5、循环打印
+
+```c
+#!/usr/bin/env bpftrace
+
+BEGIN
+{
+        printf("Bpftrce detect kernel memleak ... Hit ctrl-c to end.\n");
+}
+
+interval:s:3 // 每隔3s打印一次hello
+{
+        printf("hello\n");
+}
+```
+
+
+
 ### 4、程序结构
 
 - 1、.bt文件头部声明解析器
@@ -217,6 +235,10 @@ $z = (struct task_struct *)curtask
 - 8、system()
 
 在shell上运行命令
+
+- 9、hist()
+
+  
 
 
 
