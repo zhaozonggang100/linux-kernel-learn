@@ -52,6 +52,15 @@
 	
 12、/proc/sys/vm/panic_on_oom
 	oom触发时是否直接panic而不去杀进程
+	
+13、/proc/sys/vm/admin_reserve_kbytes
+	给有cap_sys_admin权限的用户保留的内存数量，默认值是min(free pages * 3%, 8MB)。这些内存是为了给管理员登录和杀死进程恢复系统提供足够的内存.
+
+14、/proc/sys/vm/dirty_background_ratio
+	当脏页的比例（free+可回收内存）超过指定值时，启用kdmflush线程
+	
+15、/proc/sys/vm/oom_kill_allocating_task
+	发生OOM时是否杀死触发OOM的线程
 ```
 
 ### 2、OOM触发条件
