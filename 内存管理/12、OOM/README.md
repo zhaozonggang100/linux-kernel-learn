@@ -110,6 +110,7 @@ alloc_pages(gfp_mask, order)
  	https://www.lagou.com/lgeduarticle/87749.html
 	https://www.taodudu.cc/news/show-1685780.html
 	https://blog.csdn.net/yang1349day/article/details/80227665
+	https://blog.csdn.net/zsj100213/article/details/82381151
 ```
 
 - 1.1、__alloc_pages_nodemask是buddy的heart ，一般OOM都是由于分配不到页面而触发的
