@@ -238,6 +238,46 @@ include/linux/mmzone.h（kernel-4.4.138）
  531     atomic_long_t       vm_stat[NR_VM_ZONE_STAT_ITEMS];
  532 } ____cacheline_internodealigned_in_smp;
 
+ 	 // zone中表示空闲内存的区域
+ 109 struct free_area {
+     	 // node的每个zone都有11个order管理该zone管理的物理页
+     	 // 每个order根据页的属性进行了分类MIGRATE_TYPES
+     	 // 空闲页链表
+ 110     struct list_head    free_list[MIGRATE_TYPES];
+     	 // 该order的空闲页数量
+ 111     unsigned long       nr_free;
+ 112 };
+
+  38 enum {
+  39     MIGRATE_UNMOVABLE,				// 页是不可移动的,一般不指定MOVABLE的都是UNMOVABLE
+  40     MIGRATE_MOVABLE,
+  41     MIGRATE_RECLAIMABLE,			// 页可回收
+  42 #ifdef CONFIG_CMA
+  43     /*
+  44      * MIGRATE_CMA migration type is designed to mimic the way
+  45      * ZONE_MOVABLE works.  Only movable pages can be allocated
+  46      * from MIGRATE_CMA pageblocks and page allocator never
+  47      * implicitly change migration type of MIGRATE_CMA pageblock.
+  48      *
+  49      * The way to use it is to change migratetype of a range of
+  50      * pageblocks to MIGRATE_CMA which can be done by
+  51      * __free_pageblock_cma() function.  What is important though
+  52      * is that a range of pageblocks must be aligned to
+  53      * MAX_ORDER_NR_PAGES should biggest page be bigger then
+  54      * a single pageblock.
+  55      */
+  56     MIGRATE_CMA,					// 连续物理页分配器，避免预留大块内存
+  57 #endif
+  58     MIGRATE_PCPTYPES, /* the number of types on the pcp lists */
+         // 是per_cpu_pageset,即用来表示每CPU页框高速缓存的数据结构中的链表的迁移类型数目
+  59     MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
+      	 // 是一个特殊的虚拟区域,用于跨越NUMA结点移动物理内存页.在大型系统上,它有益于将物理内存页移动到接近于使用该页最频繁的CPU.
+  60 #ifdef CONFIG_MEMORY_ISOLATION
+  61     MIGRATE_ISOLATE,    /* can't allocate from here */
+  62 #endif
+  63     MIGRATE_TYPES
+  64 };
+
  /*
  	kswapd进程回收内存时扫描的page双向链表
  */

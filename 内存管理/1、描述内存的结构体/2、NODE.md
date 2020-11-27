@@ -21,12 +21,18 @@ include/linux/mmzone.h（kernel-4.4.138）
  640     struct zonelist node_zonelists[MAX_ZONELISTS];
          // node_zones中有效zone的个数
  641     int nr_zones;
+     /*
+     	ARM64没有定义CONFIG_FLAT_NODE_MEM_MAP
+     */
  642 #ifdef CONFIG_FLAT_NODE_MEM_MAP /* means !SPARSEMEM */
  643     struct page *node_mem_map;	// 该node管理的页面数组，用于非稀疏模型
  644 #ifdef CONFIG_PAGE_EXTENSION
  645     struct page_ext *node_page_ext;	// 页的扩展属性
  646 #endif
  647 #endif
+     /*
+     	ARM64 CONFIG_NO_BOOTMEM=y
+     */
  648 #ifndef CONFIG_NO_BOOTMEM
  649     struct bootmem_data *bdata;
  650 #endif
@@ -43,11 +49,11 @@ include/linux/mmzone.h（kernel-4.4.138）
  661      */
  662     spinlock_t node_size_lock;
  663 #endif
-         //node的第一个页框号
+         // node的第一个页框号
  664     unsigned long node_start_pfn;
-         //node内的页框数，不包含洞
+         // node内的页框数，不包含洞
  665     unsigned long node_present_pages; /* total number of physical pages */
-         //node内的页框数，包含洞
+         // node内的页框数，包含洞
  666     unsigned long node_spanned_pages; /* total size of physical page
  667                          range, including holes */
  		 //当前node的编号
@@ -58,6 +64,13 @@ include/linux/mmzone.h（kernel-4.4.138）
  672                        mem_hotplug_begin/end() */
  673     int kswapd_max_order;
  674     enum zone_type classzone_idx;
+     	 // 4.4内核加入的，支持内存压缩
+ 697 #ifdef CONFIG_COMPACTION				// arm64，4.14内核默认打开了
+ 698     int kcompactd_max_order;
+ 699     enum zone_type kcompactd_classzone_idx;
+ 700     wait_queue_head_t kcompactd_wait;
+ 701     struct task_struct *kcompactd;
+ 702 #endif
  675 #ifdef CONFIG_NUMA_BALANCING
  676     /* Lock serializing the migrate rate limiting window */
  677     spinlock_t numabalancing_migrate_lock;
@@ -79,5 +92,33 @@ include/linux/mmzone.h（kernel-4.4.138）
  693     unsigned long static_init_pgcnt;
  694 #endif /* CONFIG_DEFERRED_STRUCT_PAGE_INIT */
  695 } pg_data_t;
+
+
+ 625 /*
+ 626  * One allocation request operates on a zonelist. A zonelist
+ 627  * is a list of zones, the first one is the 'goal' of the
+ 628  * allocation, the other zones are fallback zones, in decreasing
+ 629  * priority.
+ 630  *
+ 631  * To speed the reading of the zonelist, the zonerefs contain the zone index
+ 632  * of the entry being read. Helper functions to access information given
+ 633  * a struct zoneref are
+ 634  *
+ 635  * zonelist_zone()  - Return the struct zone * for an entry in _zonerefs
+ 636  * zonelist_zone_idx()  - Return the index of the zone for an entry
+ 637  * zonelist_node_idx()  - Return the index of the node for an entry
+ 638  */
+ 639 struct zonelist {
+ 640     struct zoneref _zonerefs[MAX_ZONES_PER_ZONELIST + 1];
+ 641 };
+
+ 616 /*
+ 617  * This struct contains information about a zone in a zonelist. It is stored
+ 618  * here to avoid dereferences into large structures and lookups of tables
+ 619  */
+ 620 struct zoneref {
+ 621     struct zone *zone;  /* Pointer to actual zone */
+ 622     int zone_idx;       /* zone_idx(zoneref->zone) */
+ 623 };
 ```
 

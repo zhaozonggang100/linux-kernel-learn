@@ -10,6 +10,8 @@ https://blog.csdn.net/u014175785/article/details/85050046
 
 https://www.jianshu.com/p/519544843d8c
 
+https://www.cnblogs.com/arnoldlu/p/6221609.html（memory cgroup）
+
 ### 1、概述
 
 Android通过内核提供的drivers/staging/android/lowmemorykiller.c驱动接口来实现内存不足时kill Android创建的进程。
@@ -84,7 +86,7 @@ lmdk源码：system/core/lmkd/lmkd.c
 
 ### 4、kernel  lowmemorykiller处理
 
-```
+```c
 源码：drivers/staging/android/lowmemorykiller.c
 历史：Google也在2018年4月在system/core/lmkd仓库中添加README.md，并宣判了lowmemorykiller的死期——kernel-4.12
 
