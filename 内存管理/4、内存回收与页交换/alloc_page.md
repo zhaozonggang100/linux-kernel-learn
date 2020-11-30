@@ -37,8 +37,7 @@
 3258     might_sleep_if(gfp_mask & __GFP_DIRECT_RECLAIM);
 3259 
     	 /*
-    	 	未定义CONFIG_FAIL_PAGE_ALLOC，直接返回false，继续向下运行
-    	 	为分配失败调试做准备
+    	 	未定义CONFIG_FAIL_PAGE_ALLOC，直接返回false
     	 */
 3260     if (should_fail_alloc_page(gfp_mask, order))
 3261         return NULL;
