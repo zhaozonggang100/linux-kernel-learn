@@ -271,7 +271,7 @@ include/linux/mmzone.h（kernel-4.4.138）
   58     MIGRATE_PCPTYPES, /* the number of types on the pcp lists */
          // 是per_cpu_pageset,即用来表示每CPU页框高速缓存的数据结构中的链表的迁移类型数目
   59     MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
-      	 // 是一个特殊的虚拟区域,用于跨越NUMA结点移动物理内存页.在大型系统上,它有益于将物理内存页移动到接近于使用该页最频繁的CPU.
+      	 // 是一个特殊的虚拟区域,用于跨越NUMA结点移动物理内存页.在大型系统上,它有益于将物理内存页移动到接近于使用该页最频繁的CPU，让CMA分配器、内存热插拔和从内存硬件错误恢复等功能使用
   60 #ifdef CONFIG_MEMORY_ISOLATION
   61     MIGRATE_ISOLATE,    /* can't allocate from here */
   62 #endif

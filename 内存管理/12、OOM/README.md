@@ -39,7 +39,8 @@
 7、/sys/kernel/debug/tracing/events/oom/
 
 8、/proc/sys/vm/min_free_kbytes
-	确定系统回收内存的阈值
+	最小空闲字节数，转换为page（/4096）就是最低水位线
+	https://blog.csdn.net/petib_wangwei/article/details/75135686
 	
 9、/proc/sys/vm/drop_caches
 	页缓存清除
@@ -61,6 +62,16 @@
 	
 15、/proc/sys/vm/oom_kill_allocating_task
 	发生OOM时是否杀死触发OOM的线程
+	
+16、/proc/zoneinfo
+	其中的min|low|high是page单位
+	
+17、/proc/sys/vm/lowmem_reserve_ratio
+	zone中各个区域相对于高层zone保留的page比例
+	默认值：256 32（只是UMA只有NORAML|DMA的结果）
+	
+18、/proc/apgetypeinfo
+	查看zone中各种各种可移动类型的free pages数量（zone->free_area->free_list[MIGRAT_TYPE]）
 ```
 
 ### 2、OOM触发条件
@@ -111,6 +122,7 @@ alloc_pages(gfp_mask, order)
 	https://www.taodudu.cc/news/show-1685780.html
 	https://blog.csdn.net/yang1349day/article/details/80227665
 	https://blog.csdn.net/zsj100213/article/details/82381151
+	https://bugzilla.mozilla.org/show_bug.cgi?id=989572
 ```
 
 - 1.1、__alloc_pages_nodemask是buddy的heart ，一般OOM都是由于分配不到页面而触发的

@@ -1,13 +1,13 @@
 ### 1、调用关系
 
-1、alloc_pages(gfp_t gfp_mask, unsigned int order)
+- 1、alloc_pages(gfp_t gfp_mask, unsigned int order)
 
-2、alloc_pages_current(gfp_mask, order)
+- 2、alloc_pages_current(gfp_mask, order)
 
-3、__alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
-           				struct zonelist *zonelist, nodemask_t *nodemask)
+- 3、__alloc_pages_nodemask(gfp_t gfp_mask, unsigned int order,
+             				struct zonelist *zonelist, nodemask_t *nodemask)
 
-4、正真分配free  page，buddy的核心
+- 4、正真分配free  page，buddy的核心
 
 ```c
 3236 /*
@@ -20,20 +20,26 @@
 3243     struct zoneref *preferred_zoneref;
 3244     struct page *page = NULL;
 3245     unsigned int cpuset_mems_cookie;
+    	 // ALLOC_WMARK_LOW:最开始尝试从低水位线分配
 3246     int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET|ALLOC_FAIR;
 3247     gfp_t alloc_mask; /* The gfp_t that was actually used for allocation */
 3248     struct alloc_context ac = {
-3249         .high_zoneidx = gfp_zone(gfp_mask),
-3250         .nodemask = nodemask,
-3251         .migratetype = gfpflags_to_migratetype(gfp_mask),
+3249         .high_zoneidx = gfp_zone(gfp_mask),	// 从MASK获取zone
+3250         .nodemask = nodemask,			
+3251         .migratetype = gfpflags_to_migratetype(gfp_mask),	// 从mask获取移动类型
 3252     };
 3253 
 3254     gfp_mask &= gfp_allowed_mask;
 3255 
 3256     lockdep_trace_alloc(gfp_mask);
 3257 
+    	 //如果此次内存分配可以等待（睡眠），那么再深入判断此task是否可以被调度，如果是将主动schedule
 3258     might_sleep_if(gfp_mask & __GFP_DIRECT_RECLAIM);
 3259 
+    	 /*
+    	 	未定义CONFIG_FAIL_PAGE_ALLOC，直接返回false，继续向下运行
+    	 	为分配失败调试做准备
+    	 */
 3260     if (should_fail_alloc_page(gfp_mask, order))
 3261         return NULL;
 3262 
@@ -49,15 +55,18 @@
 3272         alloc_flags |= ALLOC_CMA;
 3273 
 3274 retry_cpuset:
+    	 // 获取进程顺序锁：current->mems_allowed_seq)
 3275     cpuset_mems_cookie = read_mems_allowed_begin();
 3276 
 3277     /* We set it here, as __alloc_pages_slowpath might have changed it */
+    	 // 设置alloc_context表示此次分配的备用zone表
 3278     ac.zonelist = zonelist;
 3279 
 3280     /* Dirty zone balancing only done in the fast path */
 3281     ac.spread_dirty_pages = (gfp_mask & __GFP_WRITE);
 3282 
 3283     /* The preferred zone is used for statistics later */
+    	 // 找符合mask分配的zone，找不到直接返回
 3284     preferred_zoneref = first_zones_zonelist(ac.zonelist, ac.high_zoneidx,
 3285                 ac.nodemask ? : &cpuset_current_mems_allowed,
 3286                 &ac.preferred_zone);
@@ -66,7 +75,7 @@
 3289     ac.classzone_idx = zonelist_zone_idx(preferred_zoneref);
 3290 
     		/*
-    			首先尝试使用低水位线（zone->water[low]）分配
+    			快速分配通道，首先尝试使用低水位线（zone->water[low]）分配
     		*/
 3291     /* First allocation attempt */
 3292     alloc_mask = gfp_mask|__GFP_HARDWALL;
@@ -106,7 +115,296 @@
 3323 EXPORT_SYMBOL(__alloc_pages_nodemask);
 ```
 
-5、慢速分配通道分配内存
+- 5、快速分配通道，使用低水位线
+
+```c
+2628 /*
+2629  * get_page_from_freelist goes through the zonelist trying to allocate
+2630  * a page.
+2631  */    
+2632 static struct page *
+2633 get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags,
+2634                         const struct alloc_context *ac)
+2635 {   
+2636     struct zonelist *zonelist = ac->zonelist;
+2637     struct zoneref *z;
+2638     struct page *page = NULL;
+2639     struct zone *zone;
+2640     int nr_fair_skipped = 0;
+2641     bool zonelist_rescan;
+2642     
+2643 zonelist_scan:
+2644     zonelist_rescan = false;
+2645     
+2646     /*
+2647      * Scan zonelist, looking for a zone with enough free.
+2648      * See also __cpuset_node_allowed() comment in kernel/cpuset.c.
+2649      */
+2650     for_each_zone_zonelist_nodemask(zone, z, zonelist, ac->high_zoneidx,
+2651                                 ac->nodemask) {
+2652         unsigned long mark;
+2653 
+    		 // 限制进程只能运行在指定CPU上和在指定的NODE上分配内存
+2654         if (cpusets_enabled() &&
+2655             (alloc_flags & ALLOC_CPUSET) &&
+2656             !cpuset_zone_allowed(zone, gfp_mask))
+2657                 continue;
+2658         /*
+2659          * Distribute pages in proportion to the individual
+2660          * zone size to ensure fair page aging.  The zone a
+2661          * page was allocated in should have no effect on the
+2662          * time the page has in memory before being reclaimed.
+2663          */
+2664         if (alloc_flags & ALLOC_FAIR) {
+2665             if (!zone_local(ac->preferred_zone, zone))
+2666                 break;
+2667             if (test_bit(ZONE_FAIR_DEPLETED, &zone->flags)) {
+2668                 nr_fair_skipped++;
+2669                 continue;
+2670             }
+2671         }
+2672         /*
+2673          * When allocating a page cache page for writing, we
+2674          * want to get it from a zone that is within its dirty
+2675          * limit, such that no single zone holds more than its
+2676          * proportional share of globally allowed dirty pages.
+2677          * The dirty limits take into account the zone's
+2678          * lowmem reserves and high watermark so that kswapd
+2679          * should be able to balance it without having to
+2680          * write pages from its LRU list.
+2681          *
+2682          * This may look like it could increase pressure on
+2683          * lower zones by failing allocations in higher zones
+2684          * before they are full.  But the pages that do spill
+2685          * over are limited as the lower zones are protected
+2686          * by this very same mechanism.  It should not become
+2687          * a practical burden to them.
+2688          *
+2689          * XXX: For now, allow allocations to potentially
+2690          * exceed the per-zone dirty limit in the slowpath
+2691          * (spread_dirty_pages unset) before going into reclaim,
+2692          * which is important when on a NUMA setup the allowed
+2693          * zones are together not big enough to reach the
+2694          * global limit.  The proper fix for these situations
+2695          * will require awareness of zones in the
+2696          * dirty-throttling and the flusher threads.
+2697          */
+    		 // 如果调用者设置了__GFP_WRITE，表示文件系统申请分配一个页缓存用于写文件，那么检查节点的脏页数量是否超过限制，如果超过，不能从这个区域分配页
+2698         if (ac->spread_dirty_pages && !zone_dirty_ok(zone))
+2699             continue;
+2700 
+    		 // 检查水位线是否符合要求，如果zone的空闲页数-申请的页数小于低水位线，进行如下处理
+2701         mark = zone->watermark[alloc_flags & ALLOC_WMARK_MASK];
+2702         if (!zone_watermark_ok(zone, order, mark,
+2703                        ac->classzone_idx, alloc_flags)) {
+2704             int ret;
+2705 
+2706             /* Checked here to keep the fast path fast */
+2707             BUILD_BUG_ON(ALLOC_NO_WATERMARKS < NR_WMARK);
+    			 // 调用者要求不检查水位线，可以从这个zone分配
+2708             if (alloc_flags & ALLOC_NO_WATERMARKS)
+2709                 goto try_this_zone;
+2710 
+    			 // 如果没有开启区域回收功能或者当前节点和首选节点之间的距离大于回收距离，那么不能从这个zone分配，//如果本zone不允许回收，更新zone list cache为full，为下一次check节省时间
+2711             if (zone_reclaim_mode == 0 ||
+2712                 !zone_allows_reclaim(ac->preferred_zone, zone))
+2713                 continue;
+2714 			
+    			 // 从节点回收没有映射到进程虚拟地址空间的文件页和块分配器申请的页，重新监测水位线，如果还是小于水位线，那么不能从这个节点分配页
+    			 // 启动回收机制，如果不可以wait，返回ZONE_RECLAIM_NOSCAN，
+				 // 否则在local zone或没有关联到其他processor的zone，调用__zone_reclaim进行回收
+2715             ret = zone_reclaim(zone, gfp_mask, order);
+2716             switch (ret) {
+2717             case ZONE_RECLAIM_NOSCAN:
+2718                 /* did not scan */
+2719                 continue;
+2720             case ZONE_RECLAIM_FULL:	//没有分配空间
+2721                 /* scanned but unreclaimable */
+2722                 continue;
+2723             default:
+2724                 /* did we reclaim enough */ //成功进行了回收，check水线是否满足要求
+2725                 if (zone_watermark_ok(zone, order, mark,
+2726                         ac->classzone_idx, alloc_flags))
+2727                     goto try_this_zone;
+2728 
+2729                 continue;
+2730             }
+2731         }
+2732 
+    		 // //各种情况check完毕，在本zone进行真正的内存分配动作
+2733 try_this_zone:
+2734         page = buffered_rmqueue(ac->preferred_zone, zone, order,
+2735                 gfp_mask, alloc_flags, ac->migratetype);
+    		 // 如果分配成功，初始化页
+2736         if (page) {
+2737             if (prep_new_page(page, order, gfp_mask, alloc_flags))
+2738                 goto try_this_zone;
+2739 
+2740             /*
+2741              * If this is a high-order atomic allocation then check
+2742              * if the pageblock should be reserved for the future
+2743              */
+2744             if (unlikely(order && (alloc_flags & ALLOC_HARDER)))
+2745                 reserve_highatomic_pageblock(page, zone, order);
+2746 
+2747             return page;
+2748         }
+2749     }
+2750 
+2751     /*
+2752      * The first pass makes sure allocations are spread fairly within the
+2753      * local node.  However, the local node might have free pages left
+2754      * after the fairness batches are exhausted, and remote zones haven't
+2755      * even been considered yet.  Try once more without fairness, and
+2756      * include remote zones now, before entering the slowpath and waking
+2757      * kswapd: prefer spilling to a remote zone over swapping locally.
+2758      */
+2759     if (alloc_flags & ALLOC_FAIR) {
+2760         alloc_flags &= ~ALLOC_FAIR;
+2761         if (nr_fair_skipped) {
+2762             zonelist_rescan = true;
+2763             reset_alloc_batches(ac->preferred_zone);
+2764         }
+2765         if (nr_online_nodes > 1)
+2766             zonelist_rescan = true;
+2767     }
+2768 
+2769     if (zonelist_rescan)
+2770         goto zonelist_scan;
+2771 
+2772     return NULL;
+2773 }
+
+
+2316 /*
+2317  * Allocate a page from the given zone. Use pcplists for order-0 allocations.
+2318  */
+2319 static inline
+2320 struct page *buffered_rmqueue(struct zone *preferred_zone,
+2321             struct zone *zone, unsigned int order,
+2322             gfp_t gfp_flags, int alloc_flags, int migratetype)
+2323 {
+2324     unsigned long flags;
+2325     struct page *page = NULL;
+2326     bool cold = ((gfp_flags & __GFP_COLD) != 0);
+2327 	 
+    	 // 如果是分配一个页，直接从zone的pcp中搜索
+2328     if (likely(order == 0)) {
+2329         struct per_cpu_pages *pcp;
+2330         struct list_head *list = NULL;
+2331 
+2332         local_irq_save(flags);
+2333         pcp = &this_cpu_ptr(zone->pageset)->pcp;	//取得pcp指针
+2334 
+2335         /* First try to get CMA pages */
+2336         if (migratetype == MIGRATE_MOVABLE &&
+2337             gfp_flags & __GFP_CMA) {
+2338             list = get_populated_pcp_list(zone, 0, pcp,
+2339                     get_cma_migrate_type(), cold);	//取得对应的migrate type pcp list
+2340         }
+2341 
+2342         if (list == NULL) {
+2343             /*
+2344              * Either CMA is not suitable or there are no free CMA
+2345              * pages.
+2346              */
+    			 // 不要求从CMA区域分配，获取zone的pageset集合链表，内部会判断链表是否为空，空的话需要从buddy批量获取页
+2347             list = get_populated_pcp_list(zone, 0, pcp,
+2348                 migratetype, cold);
+2349             if (unlikely(list == NULL) ||
+2350                 unlikely(list_empty(list)))	//如果该list为空
+2351                 goto failed;
+2352         }
+2353 
+2354         if (cold)	//分配冷页，不被cache的页，比如用于DMA，从链表尾部分配
+2355             page = list_entry(list->prev, struct page, lru);
+2356         else	//分配热页，被cache的页，提高效率，从链表头部分配
+2357             page = list_entry(list->next, struct page, lru);	//热页从链表头开始查找
+2358 
+2359         list_del(&page->lru);	// 从lru list删除该页，此时分配的页不能回收
+2360         pcp->count--;	// pcp->count值代表本pcp有多少页
+2361     } else {
+2362         if (unlikely(gfp_flags & __GFP_NOFAIL)) {
+2363             /*
+2364              * __GFP_NOFAIL is not to be used in new code.
+2365              *
+2366              * All __GFP_NOFAIL callers should be fixed so that they
+2367              * properly detect and handle allocation failures.
+2368              *
+2369              * We most definitely don't want callers attempting to
+2370              * allocate greater than order-1 page units with
+2371              * __GFP_NOFAIL.
+2372              */
+2373             WARN_ON_ONCE(order > 1);
+2374         }
+2375         spin_lock_irqsave(&zone->lock, flags);	//为操作buddy上锁
+2376 
+    		 /*
+    		 	真正从buddy的free_area链表分配内存，分两种情况
+					1. __rmqueue_smallest()：如果order上对应分配策略要求的migrate type list有空间，从第一满足的节点上分配内存，并将剩余的部分add到更小的order链表上
+					2. __rmqueue_fallback()：如果对应的migrate type list上没有空间，fallback到其他的type list上，释放一定空间到本migratte type list上，fallback有相应的sequence，再进行和__rmqueue_smallest类似的分配、合并动作
+    		 */
+2377         page = NULL;
+2378         if (alloc_flags & ALLOC_HARDER) {
+    			 // 从申请order到最大order挨个尝试
+2379             page = __rmqueue_smallest(zone, order, MIGRATE_HIGHATOMIC);
+2380             if (page)
+2381                 trace_mm_page_alloc_zone_locked(page, order, migratetype);
+2382         }
+    		 // 如果是可移动的，那么从CMA区域盗用
+2383         if (!page && migratetype == MIGRATE_MOVABLE &&
+2384                 gfp_flags & __GFP_CMA)
+2385             page = __rmqueue_cma(zone, order);
+2386 
+    		 // 
+2387         if (!page)
+2388             page = __rmqueue(zone, order, migratetype, gfp_flags);
+2389 
+2390         spin_unlock(&zone->lock);
+2391         if (!page)
+2392             goto failed;
+2393         __mod_zone_freepage_state(zone, -(1 << order),
+2394                       get_pcppage_migratetype(page));
+2395     }
+2396 
+2397     __mod_zone_page_state(zone, NR_ALLOC_BATCH, -(1 << order));
+2398     if (atomic_long_read(&zone->vm_stat[NR_ALLOC_BATCH]) <= 0 &&
+2399         !test_bit(ZONE_FAIR_DEPLETED, &zone->flags))
+2400         set_bit(ZONE_FAIR_DEPLETED, &zone->flags);
+2401 
+2402     __count_zone_vm_events(PGALLOC, zone, 1 << order);	//更新本cpu vm event信息
+2403     zone_statistics(preferred_zone, zone, gfp_flags);	//更新zone相关信息
+2404     local_irq_restore(flags);
+2405 
+2406     VM_BUG_ON_PAGE(bad_range(zone, page), page);	//如果本页已经本映射，重新分配
+2407     return page;
+2408 
+2409 failed:
+2410     local_irq_restore(flags);
+2411     return NULL;
+2412 }
+
+1901 /*
+1902  * Do the hard work of removing an element from the buddy allocator.
+1903  * Call me with the zone->lock already held.
+1904  */
+1905 static struct page *__rmqueue(struct zone *zone, unsigned int order,
+1906                 int migratetype, gfp_t gfp_flags)
+1907 {
+1908     struct page *page;
+1909 	
+1910     page = __rmqueue_smallest(zone, order, migratetype);
+1911     if (unlikely(!page)) {
+    		 // 从备用迁移类型盗用页
+1912         page = __rmqueue_fallback(zone, order, migratetype);
+1913     }
+1914 
+1915     trace_mm_page_alloc_zone_locked(page, order, migratetype);
+1916     return page;
+1917 }
+```
+
+- 6、慢速分配通道分配内存
 
 ```c
 3037 static inline struct page *
