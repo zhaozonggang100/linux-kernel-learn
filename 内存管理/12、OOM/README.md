@@ -70,8 +70,11 @@
 	zone中各个区域相对于高层zone保留的page比例
 	默认值：256 32（只是UMA只有NORAML|DMA的结果）
 	
-18、/proc/apgetypeinfo
+18、/proc/pagetypeinfo
 	查看zone中各种各种可移动类型的free pages数量（zone->free_area->free_list[MIGRAT_TYPE]）
+	
+19、/proc/sys/vm/percpu_pagelist_fraction 
+	用来计算pcp每次从buddy批量分配单个内存页的个数
 ```
 
 ### 2、OOM触发条件
