@@ -8,7 +8,7 @@
 
 1、一个驱动往往可以支持多个接口   
 
-```
+```c
 struct usb_driver {
     const char *name;
     int (*probe) (struct usb_interface *intf,const struct usb_device_id *id);
@@ -32,7 +32,7 @@ struct usb_driver {
 > 设备驱动：usb_device_driver  
 
 1、这里的usb设备驱动指的是所有的usb设备的驱动
-```
+```c
 struct usb_device_driver {
     const char *name;
     int (*probe) (struct usb_device *udev);
