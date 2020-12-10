@@ -23,10 +23,11 @@
     	 // ALLOC_WMARK_LOW:最开始尝试从低水位线分配
 3246     int alloc_flags = ALLOC_WMARK_LOW|ALLOC_CPUSET|ALLOC_FAIR;
 3247     gfp_t alloc_mask; /* The gfp_t that was actually used for allocation */
+    	 // https://www.cnblogs.com/arnoldlu/p/8250734.html
 3248     struct alloc_context ac = {
-3249         .high_zoneidx = gfp_zone(gfp_mask),	// 从MASK获取zone
+3249         .high_zoneidx = gfp_zone(gfp_mask),	// gfp_zone根据gfp_mask低4位，找到对应的zone_type。ZONE_NORMAL？ZONE_HIGHMEM？
 3250         .nodemask = nodemask,			
-3251         .migratetype = gfpflags_to_migratetype(gfp_mask),	// 从mask获取移动类型
+3251         .migratetype = gfpflags_to_migratetype(gfp_mask),	// 根据gfp_mask得出页面migratetype，是MIGRATE_RECLAIMABLE？MIGRATE_MOVABLE？
 3252     };
 3253 
 3254     gfp_mask &= gfp_allowed_mask;
