@@ -3,7 +3,7 @@
 bio代表上层文件系统向通用块设备层发起的一次IO请求,request代表bio封装后的一次请求
 
 ### 2、结构体
-```
+```c
 struct bio {
     struct bio      	*bi_next; // 连接下一个bio
     struct block_device *bi_bdev; // bio对应的block_device			
@@ -32,6 +32,6 @@ struct bio {
     struct bio_vec      *bi_io_vec; /* the actual vec list */
     struct bio_set      *bi_pool;
     struct bio_vec      bi_inline_vecs[0];
-};
-        
+};      
 ```
+
