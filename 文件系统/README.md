@@ -23,6 +23,7 @@ struct file_system_type {
 #define FS_DISALLOW_NOTIFY_PERM 16      /* Disable fanotify permission events */
 #define FS_THP_SUPPORT          8192    /* Remove once all fs converted */
 #define FS_RENAME_DOES_D_MOVE   32768   /* FS will handle d_move() during rename() internally. */
+        // fsopen系统调用内部创建FS_CONTEXT_FOR_MOUNT的fs上下文
         int (*init_fs_context)(struct fs_context *);
         const struct fs_parameter_spec *parameters;
     	// 通过register_filesystem将file_system_type注册给VFS，挂载文件系统时根据指定的type，调用到ext4的mount函数
@@ -49,6 +50,52 @@ struct file_system_type {
 
 // 所有已经注册的文件系统都挂载到该指针指向的链表中
 static struct file_system_type *file_systems;
+```
+
+- 2、文件系统上下文，比较新的内核支持,XFS中有定义，ext4没有定义
+```c
+/*
+ * Filesystem context for holding the parameters used in the creation or
+ * reconfiguration of a superblock.
+ *
+ * Superblock creation fills in ->root whereas reconfiguration begins with this
+ * already set.
+ *
+ * See Documentation/filesystems/mount_api.rst
+ */
+struct fs_context {
+        const struct fs_context_operations *ops;
+        struct mutex            uapi_mutex;     /* Userspace access mutex */
+        struct file_system_type *fs_type;
+        void                    *fs_private;    /* The filesystem's context */
+        void                    *sget_key;
+        struct dentry           *root;          /* The root and superblock */
+        struct user_namespace   *user_ns;       /* The user namespace for this mount */
+        struct net              *net_ns;        /* The network namespace for this mount */
+        const struct cred       *cred;          /* The mounter's credentials */
+        struct p_log            log;            /* Logging buffer */
+        const char              *source;        /* The source name (eg. dev path) */
+        void                    *security;      /* Linux S&M options */
+        void                    *s_fs_info;     /* Proposed s_fs_info */
+        unsigned int            sb_flags;       /* Proposed superblock flags (SB_*) */
+        unsigned int            sb_flags_mask;  /* Superblock flags that were changed */
+        unsigned int            s_iflags;       /* OR'd with sb->s_iflags */
+        unsigned int            lsm_flags;      /* Information flags from the fs to the LSM */
+        enum fs_context_purpose purpose:8;
+        enum fs_context_phase   phase:8;        /* The phase the context is in */
+        bool                    need_free:1;    /* Need to call ops->free() */
+        bool                    global:1;       /* Goes into &init_user_ns */
+        bool                    oldapi:1;       /* Coming from mount(2) */
+};
+
+struct fs_context_operations {
+        void (*free)(struct fs_context *fc);
+        int (*dup)(struct fs_context *fc, struct fs_context *src_fc);
+        int (*parse_param)(struct fs_context *fc, struct fs_parameter *param);
+        int (*parse_monolithic)(struct fs_context *fc, void *data);
+        int (*get_tree)(struct fs_context *fc);
+        int (*reconfigure)(struct fs_context *fc);
+};
 ```
 
 ### 2、重要函数
