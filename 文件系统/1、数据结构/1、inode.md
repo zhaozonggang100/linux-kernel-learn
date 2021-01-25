@@ -50,6 +50,14 @@ struct inode {
                 unsigned short          i_bytes;
         u8                      i_blkbits;
         u8                      i_write_hint;
+        /*
+         * 文件系统数据管理的入口：
+         *  1、以前的方式是长度为32的数组
+         *  2、现在是一个64位的整数，包含了ext4_extent_header和ext4_extent_idx，在该
+         *  数据结构中，只有叶子节点中存储的数据包含文件逻辑地址与磁盘物理地址的映射关
+         * 系。在数据管理中有3个关键的数据结构，分别是ext4_extent_header、
+         * ext4_extent_idx和ext4_extent。
+         */
         blkcnt_t                i_blocks;
 
 #ifdef __NEED_I_SIZE_ORDERED
