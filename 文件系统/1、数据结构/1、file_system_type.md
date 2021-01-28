@@ -1,7 +1,7 @@
 ### 1、概要
 &emsp;&emsp;Linux内核支持多种文件系统类型（file_system_type），要使用某种类型的文件系统，必须调用**register_filesystem**将该类型的文件系统注册给VFS，不用时调用**unregister_filesystem**从VFS中注销。  
 
-&emsp;&emsp;所有在系统中注册过的文件系统类型对象链入到一个**单链表**中，**file_systems（fs/filesystem.c）**变量指向链表的第一项，每个文件系统类型的next成员指向链表的下一项。
+&emsp;&emsp;所有在系统中注册过的文件系统类型对象链入到一个**单链表**中，**file_systems**(fs/filesystem.c)变量指向链表的第一项，每个文件系统类型的next成员指向链表的下一项。
 
 &emsp;&emsp;文件系统类型注册的目的是向VFS提供**mount**、**kill_sb**回调函数，分别在Linux装载和卸载这种类型的文件系统实例时调用。
 
