@@ -29,7 +29,7 @@ static struct file_system_type ext4_fs_type = {
 MODULE_ALIAS_FS("ext4");
 ```
 
-- 2、ext4的superblock**定义**
+- 2、ext4的磁盘中的superblock**定义**
 
 ```c++
 // file ： fs/ext4/ext4.h
@@ -165,8 +165,11 @@ static const struct super_operations ext4_sops = {
         .dirty_inode    = ext4_dirty_inode,
         .drop_inode     = ext4_drop_inode,
         .evict_inode    = ext4_evict_inode,
+        // VFS释放ext4的超级块时调用
         .put_super      = ext4_put_super,
+        // VFS写出和EXT4超级块关联的脏数据时调用
         .sync_fs        = ext4_sync_fs,
+        // 锁住ext4，强制使它进一致性状态时调用，LVM使用这种方式
         .freeze_fs      = ext4_freeze,
         .unfreeze_fs    = ext4_unfreeze,
         .statfs         = ext4_statfs,
