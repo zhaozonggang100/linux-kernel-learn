@@ -95,6 +95,10 @@ struct ext4_super_block {
 /*D0*/  __u8    s_journal_uuid[16];     /* uuid of journal superblock */
 /*E0*/  __le32  s_journal_inum;         /* inode number of journal file */
         __le32  s_journal_dev;          /* device number of journal file */
+        /*
+                1、记录的是最近一个被unlink/truncate的inode号，从抽象角度来看，它就代表磁盘上orphan inode单链表的头
+                2、新的inode插入orphan inode链表时采用“头插法”，也就是说，最近被unlink/truncate的inode号会放在s_last_orphan中
+        */
         __le32  s_last_orphan;          /* start of list of inodes to delete */
         __le32  s_hash_seed[4];         /* HTREE hash seed */
         __u8    s_def_hash_version;     /* Default hash version to use */
@@ -242,7 +246,9 @@ struct ext4_sb_info {
 
         /* Journaling */
         struct journal_s *s_journal;
+        // s_orphan代表链表头 
         struct list_head s_orphan;
+        // s_orphan_lock是用于保护链表的互斥锁
         struct mutex s_orphan_lock;
         unsigned long s_resize_flags;           /* Flags indicating if there
                                                    is a resizer */
@@ -365,6 +371,7 @@ struct ext4_sb_info {
  */
 struct ext4_inode_info {
         __le32  i_data[15];     /* unconverted */
+        // 与ext4_inode中的i_dtime相对应
         __u32   i_dtime;
         ext4_fsblk_t    i_file_acl;
 
@@ -391,6 +398,9 @@ struct ext4_inode_info {
          */
         struct rw_semaphore xattr_sem;
 
+        /*
+                i_orphan是个链表节点，用于在内存中组成orphan inode链表。
+        */
         struct list_head i_orphan;      /* unlinked but open inodes */
 
         /* Fast commit related info */
@@ -543,6 +553,9 @@ struct ext4_inode {
         __le32  i_atime;        /* Access time */
         __le32  i_ctime;        /* Inode Change time */
         __le32  i_mtime;        /* Modification time */
+        /*
+                这个是磁盘上的inode的结构，i_dtime本来表示该inode被删除的时间，在orphan inode机制中，因为此时该域的值并不重要，故借用一下，用于记录下一个被unlink/truncate的inode号。
+        */
         __le32  i_dtime;        /* Deletion Time */
         __le16  i_gid;          /* Low 16 bits of Group Id */
         __le16  i_links_count;  /* Links count */
