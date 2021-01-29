@@ -356,4 +356,246 @@ struct ext4_sb_info {
 };
 ```
 
+- 5、ext4的内存inode结构
+
+```c++
+// file: fs/ext4/ext4.h
+/*
+ * fourth extended file system inode data in memory
+ */
+struct ext4_inode_info {
+        __le32  i_data[15];     /* unconverted */
+        __u32   i_dtime;
+        ext4_fsblk_t    i_file_acl;
+
+        /*
+         * i_block_group is the number of the block group which contains
+         * this file's inode.  Constant across the lifetime of the inode,
+         * it is used for making block allocation decisions - we try to
+         * place a file's data blocks near its inode block, and new inodes
+         * near to their parent directory's inode.
+         */
+        ext4_group_t    i_block_group;
+        ext4_lblk_t     i_dir_start_lookup;
+#if (BITS_PER_LONG < 64)
+        unsigned long   i_state_flags;          /* Dynamic state flags */
+#endif
+        unsigned long   i_flags;
+
+        /*
+         * Extended attributes can be read independently of the main file
+         * data. Taking i_mutex even when reading would cause contention
+         * between readers of EAs and writers of regular file data, so
+         * instead we synchronize on xattr_sem when reading or changing
+         * EAs.
+         */
+        struct rw_semaphore xattr_sem;
+
+        struct list_head i_orphan;      /* unlinked but open inodes */
+
+        /* Fast commit related info */
+
+        struct list_head i_fc_list;     /*
+                                         * inodes that need fast commit
+                                         * protected by sbi->s_fc_lock.
+                                         */
+
+        /* Start of lblk range that needs to be committed in this fast commit */
+        ext4_lblk_t i_fc_lblk_start;
+
+        /* End of lblk range that needs to be committed in this fast commit */
+        ext4_lblk_t i_fc_lblk_len;
+
+        /* Number of ongoing updates on this inode */
+        atomic_t  i_fc_updates;
+
+        /* Fast commit wait queue for this inode */
+        wait_queue_head_t i_fc_wait;
+
+        /* Protect concurrent accesses on i_fc_lblk_start, i_fc_lblk_len */
+        struct mutex i_fc_lock;
+
+                /*
+         * i_disksize keeps track of what the inode size is ON DISK, not
+         * in memory.  During truncate, i_size is set to the new size by
+         * the VFS prior to calling ext4_truncate(), but the filesystem won't
+         * set i_disksize to 0 until the truncate is actually under way.
+         *
+         * The intent is that i_disksize always represents the blocks which
+         * are used by this file.  This allows recovery to restart truncate
+         * on orphans if we crash during truncate.  We actually write i_disksize
+         * into the on-disk inode when writing inodes out, instead of i_size.
+         *
+         * The only time when i_disksize and i_size may be different is when
+         * a truncate is in progress.  The only things which change i_disksize
+         * are ext4_get_block (growth) and ext4_truncate (shrinkth).
+         */
+        loff_t  i_disksize;
+
+        /*
+         * i_data_sem is for serialising ext4_truncate() against
+         * ext4_getblock().  In the 2.4 ext2 design, great chunks of inode's
+         * data tree are chopped off during truncate. We can't do that in
+         * ext4 because whenever we perform intermediate commits during
+         * truncate, the inode and all the metadata blocks *must* be in a
+         * consistent state which allows truncation of the orphans to restart
+         * during recovery.  Hence we must fix the get_block-vs-truncate race
+         * by other means, so we have i_data_sem.
+         */
+        struct rw_semaphore i_data_sem;
+        /*
+         * i_mmap_sem is for serializing page faults with truncate / punch hole
+         * operations. We have to make sure that new page cannot be faulted in
+         * a section of the inode that is being punched. We cannot easily use
+         * i_data_sem for this since we need protection for the whole punch
+         * operation and i_data_sem ranks below transaction start so we have
+         * to occasionally drop it.
+         */
+        struct rw_semaphore i_mmap_sem;
+        struct inode vfs_inode;
+        struct jbd2_inode *jinode;
+
+        spinlock_t i_raw_lock;  /* protects updates to the raw inode */
+
+        /*
+         * File creation time. Its function is same as that of
+         * struct timespec64 i_{a,c,m}time in the generic inode.
+         */
+        struct timespec64 i_crtime;
+
+        /* mballoc */
+        atomic_t i_prealloc_active;
+        struct list_head i_prealloc_list;
+        spinlock_t i_prealloc_lock;
+
+        /* extents status tree */
+        struct ext4_es_tree i_es_tree;
+        rwlock_t i_es_lock;
+        struct list_head i_es_list;
+        unsigned int i_es_all_nr;       /* protected by i_es_lock */
+        unsigned int i_es_shk_nr;       /* protected by i_es_lock */
+        ext4_lblk_t i_es_shrink_lblk;   /* Offset where we start searching for
+                                           extents to shrink. Protected by
+                                           i_es_lock  */
+
+        /* ialloc */
+        ext4_group_t    i_last_alloc_group;
+
+        /* allocation reservation info for delalloc */
+        /* In case of bigalloc, this refer to clusters rather than blocks */
+        unsigned int i_reserved_data_blocks;
+
+        /* pending cluster reservations for bigalloc file systems */
+        struct ext4_pending_tree i_pending_tree;
+
+        /* on-disk additional length */
+        __u16 i_extra_isize;
+
+        /* Indicate the inline data space. */
+        u16 i_inline_off;
+        u16 i_inline_size;
+
+#ifdef CONFIG_QUOTA
+        /* quota space reservation, managed internally by quota code */
+        qsize_t i_reserved_quota;
+#endif
+
+        /* Lock protecting lists below */
+        spinlock_t i_completed_io_lock;
+        /*
+         * Completed IOs that need unwritten extents handling and have
+         * transaction reserved
+         */
+        struct list_head i_rsv_conversion_list;
+        struct work_struct i_rsv_conversion_work;
+        atomic_t i_unwritten; /* Nr. of inflight conversions pending */
+
+        spinlock_t i_block_reservation_lock;
+
+        /*
+         * Transactions that contain inode's metadata needed to complete
+         * fsync and fdatasync, respectively.
+         */
+        tid_t i_sync_tid;
+        tid_t i_datasync_tid;
+
+#ifdef CONFIG_QUOTA
+        struct dquot *i_dquot[MAXQUOTAS];
+#endif
+
+        /* Precomputed uuid+inum+igen checksum for seeding inode checksums */
+        __u32 i_csum_seed;
+        kprojid_t i_projid;
+};
+```
+
+- 6、ext4磁盘inode结构
+
+```c++
+// file: fs/ext4/ext4.h
+/*
+ * Structure of an inode on the disk
+ */
+struct ext4_inode { 
+        __le16  i_mode;         /* File mode */
+        __le16  i_uid;          /* Low 16 bits of Owner Uid */
+        __le32  i_size_lo;      /* Size in bytes */
+        __le32  i_atime;        /* Access time */
+        __le32  i_ctime;        /* Inode Change time */
+        __le32  i_mtime;        /* Modification time */
+        __le32  i_dtime;        /* Deletion Time */
+        __le16  i_gid;          /* Low 16 bits of Group Id */
+        __le16  i_links_count;  /* Links count */
+        __le32  i_blocks_lo;    /* Blocks count */
+        __le32  i_flags;        /* File flags */
+        union {      
+                struct {
+                        __le32  l_i_version;
+                } linux1;   
+                struct {    
+                        __u32  h_i_translator;
+                } hurd1;
+                struct {
+                        __u32  m_i_reserved1;
+                } masix1;
+        } osd1;                         /* OS dependent 1 */
+        __le32  i_block[EXT4_N_BLOCKS];/* Pointers to blocks */
+        __le32  i_generation;   /* File version (for NFS) */
+        __le32  i_file_acl_lo;  /* File ACL */
+        __le32  i_size_high;
+        __le32  i_obso_faddr;   /* Obsoleted fragment address */
+        union {
+                struct {
+                        __le16  l_i_blocks_high; /* were l_i_reserved1 */
+                        __le16  l_i_file_acl_high;
+                        __le16  l_i_uid_high;   /* these 2 fields */
+                        __le16  l_i_gid_high;   /* were reserved2[0] */
+                        __le16  l_i_checksum_lo;/* crc32c(uuid+inum+inode) LE */
+                        __le16  l_i_reserved;
+                } linux2;
+                struct {
+                        __le16  h_i_reserved1;  /* Obsoleted fragment number/size which are removed in ext4 */
+                        __u16   h_i_mode_high;
+                        __u16   h_i_uid_high;
+                        __u16   h_i_gid_high;
+                        __u32   h_i_author;
+                } hurd2;
+                struct {
+                        __le16  h_i_reserved1;  /* Obsoleted fragment number/size which are removed in ext4 */
+                        __le16  m_i_file_acl_high;
+                        __u32   m_i_reserved2[2];
+                } masix2;
+        } osd2;                         /* OS dependent 2 */
+        __le16  i_extra_isize;
+        __le16  i_checksum_hi;  /* crc32c(uuid+inum+inode) BE */
+        __le32  i_ctime_extra;  /* extra Change time      (nsec << 2 | epoch) */
+        __le32  i_mtime_extra;  /* extra Modification time(nsec << 2 | epoch) */
+        __le32  i_atime_extra;  /* extra Access time      (nsec << 2 | epoch) */
+        __le32  i_crtime;       /* File Creation time */
+        __le32  i_crtime_extra; /* extra FileCreationtime (nsec << 2 | epoch) */
+        __le32  i_version_hi;   /* high 32 bits for 64-bit version */
+        __le32  i_projid;       /* Project ID */
+};
+```
+
 ### 3、初始化
