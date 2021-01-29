@@ -1,14 +1,12 @@
-参考：
+ref：
 
-https://zhuanlan.zhihu.com/p/44267768
-
-https://www.cnblogs.com/alantu2018/p/8461272.html
-
-https://wiki.archlinux.org/index.php/ext4
-
+https://zhuanlan.zhihu.com/p/44267768  
+https://www.cnblogs.com/alantu2018/p/8461272.html  
+https://wiki.archlinux.org/index.php/ext4  
 https://ext4.wiki.kernel.org/index.php?title=Ext4_Howto&oldid=9017（wiki）
-
 https://ext4.wiki.kernel.org/index.php/Ext4_patchsets（patches）
+
+---
 
 ### 1、source
 
@@ -549,17 +547,24 @@ struct ext4_inode_info {
 struct ext4_inode { 
         __le16  i_mode;         /* File mode */
         __le16  i_uid;          /* Low 16 bits of Owner Uid */
+        // 文件大小
         __le32  i_size_lo;      /* Size in bytes */
+        // 文件读取时间
         __le32  i_atime;        /* Access time */
+        // inode修改时间
         __le32  i_ctime;        /* Inode Change time */
+        // 文件修改时间
         __le32  i_mtime;        /* Modification time */
         /*
                 这个是磁盘上的inode的结构，i_dtime本来表示该inode被删除的时间，在orphan inode机制中，因为此时该域的值并不重要，故借用一下，用于记录下一个被unlink/truncate的inode号。
         */
         __le32  i_dtime;        /* Deletion Time */
         __le16  i_gid;          /* Low 16 bits of Group Id */
+        // 硬链接数
         __le16  i_links_count;  /* Links count */
+        // 文件数据的块计数（512字节）
         __le32  i_blocks_lo;    /* Blocks count */
+        // 文件标识(ext4使用extent需要标记0x80000)
         __le32  i_flags;        /* File flags */
         union {      
                 struct {
@@ -572,6 +577,13 @@ struct ext4_inode {
                         __u32  m_i_reserved1;
                 } masix1;
         } osd1;                         /* OS dependent 1 */
+        /*
+                1、块映射（ext2/3)或区段树(ext4)，EXT4_N_BLOCKS=15
+                2、一个extent结构12个字节（struct ext4_extent），i_block数组15*4=60个字节，所以一个inode能存五个extent结构，然而i_block数组的头12个字节被extent头（struct ext4_extent_header）占据，所以一个inode能存4个extent结构
+                3、inode必须使用区段标记0x80000开启区段的功能。
+                4、istate block_name inode_num 查看inode中的数据
+                5、stat filename 查看文件对应的inode号
+        */
         __le32  i_block[EXT4_N_BLOCKS];/* Pointers to blocks */
         __le32  i_generation;   /* File version (for NFS) */
         __le32  i_file_acl_lo;  /* File ACL */

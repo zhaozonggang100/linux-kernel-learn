@@ -1,9 +1,13 @@
-### ref
-```
+ref
+
+```java
 https://blog.csdn.net/sara4321/article/details/8609610（通过inode号查找文件数据所在块组以及块）
 https://blog.csdn.net/sara4321/article/details/8610135
 https://www.xuebuyuan.com/1470659.html
+https://blog.csdn.net/iteye_15898/article/details/82304936?utm_medium=distribute.pc_relevant.none-task-blog-BlogCommendFromMachineLearnPai2-1.not_use_machine_learn_pai&depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromMachineLearnPai2-1.not_use_machine_learn_pai（extent结构在inode中的表示）
 ```
+---
+
 ### 1、概要    
 
 - 1、ext3、ext2是使用的`间接块`的方式存储大文件的数据，最多三级间接块，最大能存储4T大小的文件  
@@ -28,7 +32,7 @@ https://www.xuebuyuan.com/1470659.html
 
 &emsp;&emsp;首先，extent是以B树来组织block的，extent tree中每一个节点都是一个block，对于存放extent tree节点信息的block，我们称为extent block，**root**节点存在在inode表中，所以root节点就不用extent block来描述了。  
 &emsp;&emsp;每个节点（block）在其偏移0的位置存放数据结构**ext4_extent_header**用于描述该节点。ext4_extent_header的大小为**12字节**，定义如下：
-```c
+```c++
 /*              
  * Each block (leaves and indexes), even inode-stored has header.
  */     
@@ -39,7 +43,7 @@ struct ext4_extent_header {
         __le16  eh_entries;     /* number of valid entries */
         // 当前节点中entry的最大数目
         __le16  eh_max;         /* capacity of store in entries */
-        // 当前节点在树中的深度
+        // 当前节点在树中的深度，0表示叶子节点，指向数据块，否则指向其它段节点
         __le16  eh_depth;       /* has tree real underlying blocks? */
         __le32  eh_generation;  /* generation of the tree */
 };
@@ -47,12 +51,13 @@ struct ext4_extent_header {
 /*
     tips ：
         1、叶子节点深度为0，指向数据extent
-        2、tree中最大深度的节点是root节点
+        2、tree中最大深度的节点是root节点，root节点在inode中
         3、深度最大为5（logic block number最大为2^32），满足4*(((blocksize - 12)/12)^n) >= 2^32 条件的最小n是5
+        4、1个inode中最多有4个extent
 */
 ```
 &emsp;&emsp;节点中存放的**ext4_extent_header**数据之后都是很多**entry**(即表项)，每个entry大小为**12**bytes。如果是非叶子节点(所谓非叶子节点，即ext4_extent_header->eh_depth > 0)，每个entry中存放是index数据，由**struct ext4_extent_idx**描述，每一个entry索引都指向一个**extent block**；如果是叶子节点(所谓叶子节点，即ext4_extent_header->eh_depth = 0)，每个entry都是指向一个extent，由**struct ext4_extent**描述。  
-```c
+```c++
 /*
  * ext4_inode has i_block array (60 bytes total).
  * The first 12 bytes store ext4_extent_header;
@@ -77,15 +82,15 @@ struct ext4_extent_tail {
  * This is the extent on-disk structure.
  * It's used at the bottom of the tree.
  */
-// ext4_extent是用于表示extent的数据结构
+// ext4_extent是用于表示extent的数据结构，extent的叶子节点
 struct ext4_extent {
         // extent的起始block地址
         __le32  ee_block;       /* first logical block extent covers */
-        // extent的长度
+        // 该extent包含的块数
         __le16  ee_len;         /* number of blocks covered by extent */
-        // extent起始block的物理地址的高16位
+        // extent指向的块号的高16位
         __le16  ee_start_hi;    /* high 16 bits of physical block */
-        // extent起始block的物理地址的低32位
+        // extent指向的块号的低16位
         __le32  ee_start_lo;    /* low 32 bits of physical block */
 };
 /*
