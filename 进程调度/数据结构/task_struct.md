@@ -1,4 +1,4 @@
-```c
+```c++
 1638 struct task_struct {
 1639 #ifdef CONFIG_THREAD_INFO_IN_TASK		// arm64 = y，那么thread_info和进程内核栈不是共用体
 1640     /*
@@ -98,21 +98,28 @@
 1733 #endif
 1734 /* task state */
 1735     int exit_state;
+		 // 用于设置进程的终止代号，这个值要么是_exit()或exit_group()系统调用参数（正常终止），要么是由内核提供的一个错误代号（异常终止）
+		 // 被置为-1时表示是某个线程组中的一员。只有当线程组的最后一个成员终止时，才会产生一个信号，以通知线程组的领头进程的父进程。
 1736     int exit_code, exit_signal;
+		 // 用于判断父进程终止时发送信号
 1737     int pdeath_signal;  /*  The signal sent when the parent dies  */
 1738     unsigned long jobctl;   /* JOBCTL_*, siglock protected */
 1739 
 1740     /* Used for emulating ABI behavior of previous Linux versions */
+		 // 用于处理不同的ABI
 1741     unsigned int personality;
 1742 
 1743     /* scheduler bits, serialized by scheduler locks */
+		 // 用于判断是否恢复默认的优先级或调度策略
 1744     unsigned sched_reset_on_fork:1;
 1745     unsigned sched_contributes_to_load:1;
 1746     unsigned sched_migrated:1;
 1747     unsigned :0; /* force alignment to the next boundary */
 1748 
 1749     /* unserialized, strictly 'current' */
+		 // 用于通知LSM是否被do_execve()函数所调用
 1750     unsigned in_execve:1; /* bit to tell LSMs we're in execve */
+		 // 用于判断是否进行iowait计数
 1751     unsigned in_iowait:1;
 1752 #ifdef CONFIG_MEMCG
 1753     unsigned memcg_may_oom:1;
