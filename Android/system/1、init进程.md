@@ -149,6 +149,7 @@ drwxrwxr-x 2 akon akon   4096 Dec  1 12:49 test_service
 /* 09. 启动配置属性的服务端 */
 /* 10. 匹配命令和函数之间的对应关系 */
 int main(int argc, char** argv) {
+    // 检测启动文件的名字，uevented、watchdogd也是使用init.cpp编译的
     if (!strcmp(basename(argv[0]), "ueventd")) {
         return ueventd_main(argc, argv);
     }    
@@ -161,6 +162,7 @@ int main(int argc, char** argv) {
         InstallRebootSignalHandlers();
     }    
 
+    // 设置环境变量
     add_environment("PATH", _PATH_DEFPATH);
 
     bool is_first_stage = (getenv("INIT_SECOND_STAGE") == nullptr);
@@ -169,6 +171,7 @@ int main(int argc, char** argv) {
         boot_clock::time_point start_time = boot_clock::now();
 
         // Clear the umask.
+        // 设置文件属性为0777
         umask(0);
 
         // Get the basic filesystem setup we need put together in the initramdisk
@@ -207,6 +210,7 @@ int main(int argc, char** argv) {
 
         // We're in the kernel domain, so re-exec init to transition to the init domain now
         // that the SELinux policy has been loaded.
+        // 按照selinux policy要求，重新设置init文件属性
         if (selinux_android_restorecon("/init", 0) == -1) {
             PLOG(ERROR) << "restorecon failed";
             security_failure();
@@ -238,16 +242,20 @@ int main(int argc, char** argv) {
     keyctl_get_keyring_ID(KEY_SPEC_SESSION_KEYRING, 1);
 
     // Indicate that booting is in progress to background fw loaders, etc.
+    // 创建初始化标志
     close(open("/dev/.booting", O_WRONLY | O_CREAT | O_CLOEXEC, 0000));
+    // 初始化Android的属性系统
     property_init();
 
     // If arguments are passed both on the command line and in DT,
     // properties set in DT always have priority over the command-line ones.
+    // 解析DT和命令行中的kernel启动参数
     process_kernel_dt();
     process_kernel_cmdline();
 
     // Propagate the kernel variables to internal variables
     // used by init as well as the current required properties.
+    // 设置系统属性
     export_kernel_boot_props();
 
     // Make the time that init started available for bootstat to log.
@@ -279,6 +287,7 @@ int main(int argc, char** argv) {
     unsetenv("INIT_AVB_VERSION");
 
     // Now set up SELinux for second stage.
+    // 调用selinux_initialize函数启动SELinux
     selinux_initialize(false);
     selinux_restore_context();
 
@@ -351,6 +360,7 @@ int main(int argc, char** argv) {
     // Run all property triggers based on current state of the properties.
     am.QueueBuiltinAction(queue_property_triggers_action, "queue_property_triggers");
 
+    // init进程最后进入了无限循环中
     while (true) {
         // By default, sleep until something happens.
         int epoll_timeout_ms = -1;
@@ -362,9 +372,12 @@ int main(int argc, char** argv) {
             }
         }
 
+        // 调用函数execute_one_command来检查action_queue列表是否为空。如果不为空的话，那么init进程就将保存在列表头部中的action移除，并且执行这个被移除的action。由于前面我们将一个名称为"console_init"的action添加到action_queue列表中，因此，在这个无线循环中，这个action就会被执行，即console_init_action函数会被调用
         if (!(waiting_for_prop || sm.IsWaitingForExec())) {
             am.ExecuteOneCommand();
         }
+
+        // 调用函数restart_processes来检查系统中是否有进程需要重启。在启动脚本init.rc中，我们可以指定一个进程在退出之后会自动重启。在这种情况下，函数restart_processes就会检查是否存在需要重新启动的进程，如果存在的话，那么就将它重新启动起来
         if (!(waiting_for_prop || sm.IsWaitingForExec())) {
             if (!shutting_down) restart_processes();
 
@@ -393,6 +406,7 @@ int main(int argc, char** argv) {
 }  // namespace init
 }  // namespace android
 
+// 整个init进程的入口
 int main(int argc, char** argv) {
     android::init::main(argc, argv);
 }
