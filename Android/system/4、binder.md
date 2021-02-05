@@ -1,11 +1,38 @@
 **ref** 
 ```
-https://zhuanlan.zhihu.com/p/30691789
+https://zhuanlan.zhihu.com/p/30691789（旧版本Android）
+https://blog.csdn.net/yiranfeng/article/details/105181297（基于Android10）
 ```
 
 ---
 
-### 1、结构体
+### 1、概述
+
+1、从Android 8.0 开始binder被拆分为：
+
+**binder**：System分区 进程间通信
+
+**hwbinder**：System/Vendor分区进程间通信
+
+**vndbinder**：Vendor分区进程间通信
+
+2、关键术语  
+
+**bpbinder**：binder代理，client端访问server端binder实体的引用
+
+**bbinder**：binder实体，server端binder的表示结构
+
+**ServiceManager**：binder架构的native层的0号binder服务，用于server注册服务，client查询服务等管理工作
+
+3、binder内核设备文件
+```bash
+crw-rw-rw- 1 root            root             10,  50 2021-02-03 17:48 binder
+crw-rw-rw- 1 root            root             10,  49 2021-02-03 17:48 hwbinder
+crw-rw-rw- 1 root            root             10,  48 2021-02-03 17:48 vndbinder
+```
+
+
+### 2、结构体
 
 - 1、binder进程
 
