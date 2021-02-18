@@ -140,10 +140,11 @@ struct super_block {
          * Keep the lru lists last in the structure so they always sit on their
          * own individual cachelines.
          */
+        // 文件系统未使用的dentry链表头
         struct list_lru         s_dentry_lru ____cacheline_aligned_in_smp;
         struct list_lru         s_inode_lru ____cacheline_aligned_in_smp;
         struct rcu_head         rcu;
-        struct work_struct      destroy_work;
+        struct work_struct  s_den    destroy_work;
 
         struct mutex            s_sync_lock;    /* sync serialisation lock */
 
