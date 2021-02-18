@@ -15,3 +15,7 @@ git clone git://$hostip
 ### 2、git status 显示中文和解决中文乱码
 
 `git config --global core.quotepath false`
+
+### 3、将本地分支和远端同名分支关联
+
+`git branch --set-upstream-to=origin/<remote-branch> <local-branch>`
