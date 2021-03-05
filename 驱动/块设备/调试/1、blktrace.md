@@ -50,3 +50,12 @@ echo 10000 > /sys/kernel/debug/tracing/buffer_size_kb    //每cpu缓存大小
 	buffer_total_size_kb：所有cpu动态跟踪信息缓存大小
 ```
 
+### 2、ubuntu20 使用blktrace
+
+- 1、安装blktrace
+
+```
+apt install blktrace
+```
+
+- 2、
