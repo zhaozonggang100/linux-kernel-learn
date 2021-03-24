@@ -1,8 +1,12 @@
 **ref**
 ```
-https://www.jianshu.com/p/9f978d57c683（Android启动流程）
+https://www.jianshu.com/p/9f978d57c683（Android O启动流程）
+http://wp.lijinshan.site/android/13374（Q）
+http://www.soolco.com/post/46792_1_1.html(Q)
 ```
 ---
+
+# 1、android O
 
 ### 1、概要
 
@@ -409,5 +413,426 @@ int main(int argc, char** argv) {
 // 整个init进程的入口
 int main(int argc, char** argv) {
     android::init::main(argc, argv);
+}
+```
+
+# 2、Android Q
+
+### 1、入口main
+
+Android Q上init.cpp的main函数会分多个阶段调用
+
+```c++
+//  android/system/core/init/main.cpp
+int main(int argc, char** argv) {
+#if __has_feature(address_sanitizer)
+    __asan_set_error_report_callback(AsanReportCallback);
+#endif
+
+    if (!strcmp(basename(argv[0]), "ueventd")) {
+        return ueventd_main(argc, argv);
+    }
+
+    if (argc > 1) {
+        if (!strcmp(argv[1], "subcontext")) {
+            android::base::InitLogging(argv, &android::base::KernelLogger);
+            const BuiltinFunctionMap function_map;
+
+            return SubcontextMain(argc, argv, &function_map);
+        }
+
+        if (!strcmp(argv[1], "selinux_setup")) {
+            return SetupSelinux(argv);
+        }
+
+        if (!strcmp(argv[1], "second_stage")) {
+            return SecondStageMain(argc, argv);
+        }
+    }
+
+    // 第一次调用init，会进行分区的挂载
+    return FirstStageMain(argc, argv);
+}
+```
+
+- 1、第一阶段调用`FirstStageMain`完成分区挂载的动作
+
+```c++
+// android/system/core/init/first_stage_init.cpp
+int FirstStageMain(int argc, char** argv) {
+    if (REBOOT_BOOTLOADER_ON_PANIC) {
+        InstallRebootSignalHandlers();
+    }
+
+    boot_clock::time_point start_time = boot_clock::now();
+
+    std::vector<std::pair<std::string, int>> errors;
+#define CHECKCALL(x) \
+    if (x != 0) errors.emplace_back(#x " failed", errno);
+
+    // Clear the umask.
+    umask(0);
+
+    CHECKCALL(clearenv());
+    CHECKCALL(setenv("PATH", _PATH_DEFPATH, 1));
+    // Get the basic filesystem setup we need put together in the initramdisk
+    // on / and then we'll let the rc file figure out the rest.
+    CHECKCALL(mount("tmpfs", "/dev", "tmpfs", MS_NOSUID, "mode=0755"));
+    CHECKCALL(mkdir("/dev/pts", 0755));
+    CHECKCALL(mkdir("/dev/socket", 0755));
+    CHECKCALL(mount("devpts", "/dev/pts", "devpts", 0, NULL));
+#define MAKE_STR(x) __STRING(x)
+    #ifdef ENABLE_EARLY_SERVICES
+     if (0 == access("/proc/cmdline", F_OK))
+     {
+     CHECKCALL(mount("proc", "/proc", "proc", MS_REMOUNT, "hidepid=2,gid=" MAKE_STR(AID_READPROC)));
+     }
+     else
+     {
+     CHECKCALL(mount("proc", "/proc", "proc", 0, "hidepid=2,gid=" MAKE_STR(AID_READPROC)));
+     }
+    #else
+    CHECKCALL(mount("proc", "/proc", "proc", 0, "hidepid=2,gid=" MAKE_STR(AID_READPROC)));
+    #endif
+#undef MAKE_STR
+    // Don't expose the raw commandline to unprivileged processes.
+    CHECKCALL(chmod("/proc/cmdline", 0440));
+    gid_t groups[] = {AID_READPROC};
+    CHECKCALL(setgroups(arraysize(groups), groups));
+    #ifdef ENABLE_EARLY_SERVICES
+    mount("sysfs", "/sys", "sysfs", 0, NULL);
+    mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL);
+    #else
+    CHECKCALL(mount("sysfs", "/sys", "sysfs", 0, NULL));
+    CHECKCALL(mount("selinuxfs", "/sys/fs/selinux", "selinuxfs", 0, NULL));
+    #endif
+    CHECKCALL(mknod("/dev/kmsg", S_IFCHR | 0600, makedev(1, 11)));
+
+    if constexpr (WORLD_WRITABLE_KMSG) {
+        CHECKCALL(mknod("/dev/kmsg_debug", S_IFCHR | 0622, makedev(1, 11)));
+    }
+
+    CHECKCALL(mknod("/dev/random", S_IFCHR | 0666, makedev(1, 8)));
+    CHECKCALL(mknod("/dev/urandom", S_IFCHR | 0666, makedev(1, 9)));
+
+    // This is needed for log wrapper, which gets called before ueventd runs.
+    CHECKCALL(mknod("/dev/ptmx", S_IFCHR | 0666, makedev(5, 2)));
+    CHECKCALL(mknod("/dev/null", S_IFCHR | 0666, makedev(1, 3)));
+
+    // These below mounts are done in first stage init so that first stage mount can mount
+    // subdirectories of /mnt/{vendor,product}/.  Other mounts, not required by first stage mount,
+    // should be done in rc files.
+    // Mount staging areas for devices managed by vold
+    // See storage config details at http://source.android.com/devices/storage/
+    CHECKCALL(mount("tmpfs", "/mnt", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,
+                    "mode=0755,uid=0,gid=1000"));
+    // /mnt/vendor is used to mount vendor-specific partitions that can not be
+    // part of the vendor partition, e.g. because they are mounted read-write.
+    CHECKCALL(mkdir("/mnt/vendor", 0755));
+    // /mnt/product is used to mount product-specific partitions that can not be
+    // part of the product partition, e.g. because they are mounted read-write.
+    CHECKCALL(mkdir("/mnt/product", 0755));
+
+    // /apex is used to mount APEXes
+    CHECKCALL(mount("tmpfs", "/apex", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,
+                    "mode=0755,uid=0,gid=0"));
+
+    // /debug_ramdisk is used to preserve additional files from the debug ramdisk
+    CHECKCALL(mount("tmpfs", "/debug_ramdisk", "tmpfs", MS_NOEXEC | MS_NOSUID | MS_NODEV,
+                    "mode=0755,uid=0,gid=0"));
+#undef CHECKCALL
+
+    SetStdioToDevNull(argv);
+    // Now that tmpfs is mounted on /dev and we have /dev/kmsg, we can actually
+    // talk to the outside world...
+    InitKernelLogging(argv);
+
+    if (!errors.empty()) {
+        for (const auto& [error_string, error_errno] : errors) {
+            LOG(ERROR) << error_string << " " << strerror(error_errno);
+        }
+        LOG(FATAL) << "Init encountered errors starting first stage, aborting";
+    }
+
+    LOG(INFO) << "init first stage started!";
+
+    auto old_root_dir = std::unique_ptr<DIR, decltype(&closedir)>{opendir("/"), closedir};
+    if (!old_root_dir) {
+        PLOG(ERROR) << "Could not opendir(\"/\"), not freeing ramdisk";
+    }
+
+    struct stat old_root_info;
+    if (stat("/", &old_root_info) != 0) {
+        PLOG(ERROR) << "Could not stat(\"/\"), not freeing ramdisk";
+        old_root_dir.reset();
+    }
+
+    if (ForceNormalBoot()) {
+        mkdir("/first_stage_ramdisk", 0755);
+        // SwitchRoot() must be called with a mount point as the target, so we bind mount the
+        // target directory to itself here.
+        if (mount("/first_stage_ramdisk", "/first_stage_ramdisk", nullptr, MS_BIND, nullptr) != 0) {
+            LOG(FATAL) << "Could not bind mount /first_stage_ramdisk to itself";
+        }
+        SwitchRoot("/first_stage_ramdisk");
+    }
+
+    // If this file is present, the second-stage init will use a userdebug sepolicy
+    // and load adb_debug.prop to allow adb root, if the device is unlocked.
+    if (access("/force_debuggable", F_OK) == 0) {
+        std::error_code ec;  // to invoke the overloaded copy_file() that won't throw.
+        if (!fs::copy_file("/adb_debug.prop", kDebugRamdiskProp, ec) ||
+            !fs::copy_file("/userdebug_plat_sepolicy.cil", kDebugRamdiskSEPolicy, ec)) {
+            LOG(ERROR) << "Failed to setup debug ramdisk";
+        } else {
+            // setenv for second-stage init to read above kDebugRamdisk* files.
+            setenv("INIT_FORCE_DEBUGGABLE", "true", 1);
+        }
+    }
+
+    // 内部会挂载Q的逻辑分区
+    if (!DoFirstStageMount()) {
+        LOG(FATAL) << "Failed to mount required partitions early ...";
+    }
+
+    struct stat new_root_info;
+    if (stat("/", &new_root_info) != 0) {
+        PLOG(ERROR) << "Could not stat(\"/\"), not freeing ramdisk";
+        old_root_dir.reset();
+    }
+
+    if (old_root_dir && old_root_info.st_dev != new_root_info.st_dev) {
+        FreeRamdisk(old_root_dir.get(), old_root_info.st_dev);
+    }
+
+    SetInitAvbVersionInRecovery();
+
+    static constexpr uint32_t kNanosecondsPerMillisecond = 1e6;
+    uint64_t start_ms = start_time.time_since_epoch().count() / kNanosecondsPerMillisecond;
+    setenv("INIT_STARTED_AT", std::to_string(start_ms).c_str(), 1);
+
+    const char* path = "/system/bin/init";
+    const char* args[] = {path, "selinux_setup", nullptr};
+    // 第二次执行init，参数是selinux_setup
+    execv(path, const_cast<char**>(args));
+
+    // execv() only returns if an error happened, in which case we
+    // panic and never fall through this conditional.
+    PLOG(FATAL) << "execv(\"" << path << "\") failed";
+
+    return 1;
+}
+```
+
+- 2、第二阶段会在`FirstStageMain`中再次执行init，传参为`selinux_setup`，完成selinux的初始化
+
+- 3、第三阶段会在`SetupSelinux`中第三次执行init，参数为`second_stage`，完成信号量、各种服务的初始化，最后进入`while 1`循环
+
+### 2、super分区挂载过程
+
+init--->FirstStageMain()--->DoFirstStageMount()--->FirstStageMount::DoFirstStageMount()
+
+- 1、DoFirstStageMount(public)，从/vendor/etc/fstab.qcom构建FirstStageMount类的对象，并调用对象的DoFirstStageMount方法
+
+```c++
+// file：android/system/core/init/first_stage_mount.cpp
+// 这个函数是public的，不属于类
+bool DoFirstStageMount() {
+    // Skips first stage mount if we're in recovery mode.
+    if (IsRecoveryMode()) {
+        LOG(INFO) << "First stage mount skipped (recovery mode)";
+        return true;
+    }
+
+    // 调用create返回FirstStageMount的类对象（实际是通过fstab类型强转）
+    // create函数内部会读取Android device tree（/proc/device-tree/firmware/android）的配置返回不同的对象
+    //      get_android_dt_dir()函数返回：/proc/device-tree/firmware/android
+    std::unique_ptr<FirstStageMount> handle = FirstStageMount::Create();
+    if (!handle) {
+        LOG(ERROR) << "Failed to create FirstStageMount";
+        return false;
+    }
+
+    // 调用FirstStageMount类的DoFirstStageMount方法
+    return handle->DoFirstStageMount();
+}
+
+std::unique_ptr<FirstStageMount> FirstStageMount::Create() {
+    auto fstab = ReadFirstStageFstab();
+    if (IsDtVbmetaCompatible(fstab)) {
+        // 从此处返回
+        // class FirstStageMountVBootV2 : public FirstStageMount
+        return std::make_unique<FirstStageMountVBootV2>(std::move(fstab));
+    } else {
+        return std::make_unique<FirstStageMountVBootV1>(std::move(fstab));
+    }
+}
+
+static Fstab ReadFirstStageFstab() {
+    Fstab fstab;
+    if (!ReadFstabFromDt(&fstab)) { // 从/proc/device-tree/firmware/android读取fstab失败
+        if (ReadDefaultFstab(&fstab)) { // 从/vendor/etc/fstab.qcom读取fstab条目
+            fstab.erase(std::remove_if(fstab.begin(), fstab.end(),
+                                       [](const auto& entry) {
+                                           return !entry.fs_mgr_flags.first_stage_mount;
+                                       }),
+                        fstab.end());
+        } else {
+            LOG(INFO) << "Failed to fstab for first stage mount";
+        }
+    }
+    return fstab;
+}
+```
+
+- 2、FirstStageMount::DoFirstStageMount()--->FirstStageMount::InitDevices
+
+```c++
+// file：android/system/core/init/first_stage_mount.cpp
+bool FirstStageMount::DoFirstStageMount() {
+    // 判断：两个条件都是真
+    //      1、内核是否使能dm-linner
+    //      2、上一步的fstab条目是否为空
+    if (!IsDmLinearEnabled() && fstab_.empty()) {
+        // Nothing to mount.
+        LOG(INFO) << "First stage mount skipped (missing/incompatible/empty fstab in device tree)";
+        return true;
+    }
+
+    // 1. 初始化device-mapper uevent，super分区添加到动态分区列表
+    if (!InitDevices()) return false;
+
+    // 2. 
+    if (!CreateLogicalPartitions()) return false;
+
+    // 3
+    if (!MountPartitions()) return false;
+
+    return true;
+}
+
+// --------------------------> 1
+// FirstStageMount::InitDevices()--->FirstStageMount::GetDmLinearMetadataDevice()--->FirstStageMountVBootV2::GetDmVerityDevices()--->FirstStageMount::InitRequiredDevices()
+bool FirstStageMount::InitDevices() {
+    // i: FirstStageMount->required_devices_partition_names_ = "super"
+    // ii: 
+    // iii: 监听/devices/virtual/misc/device-mapper/uevent
+    return GetDmLinearMetadataDevice() && GetDmVerityDevices() && InitRequiredDevices();
+}
+
+// 获取dm设备对应的物理分区：Q中定义的是：super
+bool FirstStageMount::GetDmLinearMetadataDevice() {
+    // Add any additional devices required for dm-linear mappings.
+    if (!IsDmLinearEnabled()) { // return true：1
+        return true;
+    }
+
+    // super_partition_name_使用了默认的 ： "super"
+    required_devices_partition_names_.emplace(super_partition_name_);
+    return true;
+}
+
+bool FirstStageMountVBootV2::GetDmVerityDevices() {
+    need_dm_verity_ = false;
+
+    std::set<std::string> logical_partitions;
+
+    // fstab_rec->blk_device has A/B suffix.
+    // 遍历fstab
+    for (const auto& fstab_entry : fstab_) {
+        if (fstab_entry.fs_mgr_flags.avb) {
+            need_dm_verity_ = true;
+        }
+        // fs_mgr_flags中标记分区是否是逻辑分区
+        if (fstab_entry.fs_mgr_flags.logical) { // 逻辑分区
+            // Don't try to find logical partitions via uevent regeneration.
+            logical_partitions.emplace(basename(fstab_entry.blk_device.c_str()));
+        } else { // 物理分区
+            required_devices_partition_names_.emplace(basename(fstab_entry.blk_device.c_str()));
+        }
+    }
+
+    // Any partitions needed for verifying the partitions used in first stage mount, e.g. vbmeta
+    // must be provided as vbmeta_partitions.
+    // vbmeta分区：vbmeta,boot,system,vendor,dtboa
+    if (need_dm_verity_) {
+        if (vbmeta_partitions_.empty()) {
+            LOG(ERROR) << "Missing vbmeta partitions";
+            return false;
+        }
+        std::string ab_suffix = fs_mgr_get_slot_suffix();
+        for (const auto& partition : vbmeta_partitions_) {
+            std::string partition_name = partition + ab_suffix;
+            if (logical_partitions.count(partition_name)) {  // 逻辑分区跳过
+                continue;
+            }
+            // required_devices_partition_names_ is of type std::set so it's not an issue
+            // to emplace a partition twice. e.g., /vendor might be in both places:
+            //   - device_tree_vbmeta_parts_ = "vbmeta,boot,system,vendor"
+            //   - mount_fstab_recs_: /vendor_a
+            required_devices_partition_names_.emplace(partition_name);
+        }
+    }
+    return true;
+}
+
+// Creates devices with uevent->partition_name matching one in the member variable
+// required_devices_partition_names_. Found partitions will then be removed from it
+// for the subsequent member function to check which devices are NOT created.
+bool FirstStageMount::InitRequiredDevices() {
+    if (required_devices_partition_names_.empty()) {
+        return true;
+    }
+
+    if (IsDmLinearEnabled() || need_dm_verity_) {
+        if (!InitDeviceMapper()) {
+            return false;
+        }
+    }
+
+    // 递归扫描/sys目录下的uevent文件，如果对应的块设备驱动没有创建uevent文件则删除分区从required_devices_partition_names_
+    auto uevent_callback = [this](const Uevent& uevent) { return UeventCallback(uevent); };
+    uevent_listener_.RegenerateUevents(uevent_callback);
+
+    // UeventCallback() will remove found partitions from required_devices_partition_names_.
+    // So if it isn't empty here, it means some partitions are not found.
+    if (!required_devices_partition_names_.empty()) {
+        LOG(INFO) << __PRETTY_FUNCTION__
+                  << ": partition(s) not found in /sys, waiting for their uevent(s): "
+                  << android::base::Join(required_devices_partition_names_, ", ");
+        Timer t;
+        uevent_listener_.Poll(uevent_callback, 10s);
+        LOG(INFO) << "Wait for partitions returned after " << t;
+    }
+
+    if (!required_devices_partition_names_.empty()) {
+        LOG(ERROR) << __PRETTY_FUNCTION__ << ": partition(s) not found after polling timeout: "
+                   << android::base::Join(required_devices_partition_names_, ", ");
+        return false;
+    }
+
+    return true;
+}
+
+// --------------------------> 2
+bool FirstStageMount::CreateLogicalPartitions() {
+    if (!IsDmLinearEnabled()) {
+        return true;
+    }
+    if (lp_metadata_partition_.empty()) {
+        LOG(ERROR) << "Could not locate logical partition tables in partition "
+                   << super_partition_name_;
+        return false;
+    }
+
+    auto metadata = android::fs_mgr::ReadCurrentMetadata(lp_metadata_partition_);
+    if (!metadata) {
+        LOG(ERROR) << "Could not read logical partition metadata from " << lp_metadata_partition_;
+        return false;
+    }
+    if (!InitDmLinearBackingDevices(*metadata.get())) {
+        return false;
+    }
+    return android::fs_mgr::CreateLogicalPartitions(*metadata.get(), lp_metadata_partition_);
 }
 ```
