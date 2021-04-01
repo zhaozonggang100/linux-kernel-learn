@@ -80,33 +80,99 @@ BOARD_QTI_DYNAMIC_PARTITIONS_PARTITION_LIST := system vendor
 
 ### 6、创建一个动态分区
 
-- 1、修改分区表，添加自己动态分区对应的物理分区  
+- 1、修改分区表，添加自己动态分区对应的物理分区
 
-- 2、生成动态分区镜像
+`<partition label="xxx" size_in_kb="1048576" type="E6B7D892-26F2-4AAF-977A-2A5A3859DD70" bootable="false" readonly="false" filename="super-xxx.img" sparse="true"/>`
+
+- 2、生成动态分区镜像，然后手动将生成的镜像刷入第一步创建的物理分区
 
 ```bash
 #!/bin/bash
 
 # xxx.img生成过程
-# 1、dd if=/dev/zero of=xxx.ext4 count=xxx
-# 2、mkfs.ext4 xxx.ext4
+# 1、dd if=/dev/zero of=xxx.ext4 count=xxx bs=1024 count=1024 (这里制作1MB的镜像)
+# 2、mkfs.ext4 -b 4096 xxx.ext4 (这里ext4的块大小根据自己系统设置)
 # 3、img2simg xxx.ext4 xxx.img  将ext4格式的文件转换为sparse（https://blog.csdn.net/js_wawayu/article/details/52420255）
 
 # lpmake源码：android/system/core/fs_mgr/liblp/
+# --group：动态分区内部的组名字，可以创建多个组
+# --partition[--image]：每个逻辑分区必须属于一个组
 lpmake --metadata-size 65536 \
-        --super-name super_liauto \
+        --super-name super_name \
         --metadata-slots 3 \ 
-        --device super_liauto:1073741824 \
-        --group qti_dynamic_partitions_liauto:1073741824 \
-        --partition li_1:none:52428800:qti_dynamic_partitions_liauto \
+        --device super_name:1073741824 \
+        --group qti_dynamic_partitions_name:1073741824 \
+        --partition logical_partition_name_1:none:52428800:qti_dynamic_partitions_name \
         --image li_1=./li_1.img \
-        --partition li_2:none:52428800:qti_dynamic_partitions_liauto \
+        --partition logical_partition_name_2:none:52428800:qti_dynamic_partitions_name \
         --image li_2=./li_2.img \
         --sparse \
-        --output ./super-liauto.img
+        --output ./super-xxx.img
 ```
 
-- 3、
+- 3、板内解析动态分区并挂载其中逻辑分区
+
+```bash
+# 将下面的patch合入并刷写boot.img即可，make bootimage ---> fastboot flash boot boot.img
+diff --git a/init/first_stage_mount.cpp b/init/first_stage_mount.cpp
+index 3e76556..cef1134 100644
+--- a/init/first_stage_mount.cpp
++++ b/init/first_stage_mount.cpp
+@@ -102,8 +102,10 @@ class FirstStageMount {
+ 
+     Fstab fstab_;
+     std::string lp_metadata_partition_;
++    std::string lp_metadata_partition_liauto_;
+     std::set<std::string> required_devices_partition_names_;
+     std::string super_partition_name_;
++    std::string super_partition_liauto_name_;
+     std::unique_ptr<DeviceHandler> device_handler_;
+     UeventListener uevent_listener_;
+ };
+@@ -268,7 +270,10 @@ bool FirstStageMount::GetDmLinearMetadataDevice() {
+         return true;
+     }
+ 
++
+     required_devices_partition_names_.emplace(super_partition_name_);
++    super_partition_liauto_name_ = "liauto";
++    required_devices_partition_names_.emplace(super_partition_liauto_name_);
+     return true;
+ }
+ 
+@@ -368,6 +373,18 @@ bool FirstStageMount::CreateLogicalPartitions() {
+         return false;
+     }
+ 
++    auto metadata_li = android::fs_mgr::ReadCurrentMetadata(lp_metadata_partition_liauto_);
++    if (!metadata_li) {
++        LOG(ERROR) << "Could not read logical partition metadata from" << lp_metadata_partition_liauto_;
++        return false;
++    }
++    if (!InitDmLinearBackingDevices(*metadata_li.get())) {
++        return false;
++    }
++    if (android::fs_mgr::CreateLogicalPartitions(*metadata_li.get(), lp_metadata_partition_liauto_) == false) {
++        return false;
++    }
++
+     auto metadata = android::fs_mgr::ReadCurrentMetadata(lp_metadata_partition_);
+     if (!metadata) {
+         LOG(ERROR) << "Could not read logical partition metadata from " << lp_metadata_partition_;
+@@ -390,6 +407,10 @@ ListenerAction FirstStageMount::HandleBlockDevice(const std::string& name, const
+             std::vector<std::string> links = device_handler_->GetBlockDeviceSymlinks(uevent);
+             lp_metadata_partition_ = links[0];
+         }
++        if (IsDmLinearEnabled() && name == super_partition_liauto_name_) {
++            std::vector<std::string> links = device_handler_->GetBlockDeviceSymlinks(uevent);
++            lp_metadata_partition_liauto_ = links[0];
++        }
+         required_devices_partition_names_.erase(iter);
+         device_handler_->HandleUevent(uevent);
+         if (required_devices_partition_names_.empty()) {
+```
+
+- 4、验证动态分区是否可以实现动态
 
 ### 7、super镜像的生成过程
 
