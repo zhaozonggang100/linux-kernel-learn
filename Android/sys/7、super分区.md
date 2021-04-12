@@ -239,3 +239,5 @@ ref：`https://blog.csdn.net/Android_2016/article/details/103862493`
 # lpunpack super_ext4.img xxx/
 #     ---> system_a.img  system_b.img  vendor_a.img  vendor_b.img
 ```
+
+### 9、super分区ota
