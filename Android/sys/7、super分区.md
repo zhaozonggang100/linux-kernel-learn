@@ -241,3 +241,7 @@ ref：`https://blog.csdn.net/Android_2016/article/details/103862493`
 ```
 
 ### 9、super分区ota
+
+### 10、android image制作过程
+https://zhuanlan.zhihu.com/p/53009043
+http://www.zyiz.net/tech/detail-134969.html
