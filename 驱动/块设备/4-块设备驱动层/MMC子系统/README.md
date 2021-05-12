@@ -4,6 +4,8 @@ https://blog.csdn.net/ooonebook/article/details/55001322
 
 https://www.cnblogs.com/RandyQ/p/3607107.html
 
+https://blog.csdn.net/yuesichiu/article/details/74159253
+
 ### 1、概述
 
 MMC子系统为Linux上层提供了访问符合MMC协议规范的MMC CARD（包括EMMC、SD卡、SDIO接口的卡：wifi、bt）的接口，对下层的不同host控制器控制的MMC CARD提供了抽象层，使得接入更加方便
