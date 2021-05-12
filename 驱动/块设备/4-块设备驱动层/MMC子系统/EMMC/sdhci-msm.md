@@ -1,12 +1,15 @@
+### ref
+
+```
 https://blog.csdn.net/zwj0403/article/details/38409061
-
 https://blog.csdn.net/ooonebook/article/details/55272522
-
 https://blog.csdn.net/feiying0canglang/article/details/101778289#读写流程
-
 https://blog.csdn.net/weixin_38006908/article/details/87375404?utm_medium=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromMachineLearnPai2-1.nonecase&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromMachineLearnPai2-1.nonecase
+https://blog.csdn.net/shenjin_s/article/details/80855762?utm_source=blogxgwz2
+https://www.cnblogs.com/linhaostudy/p/10818152.html [介绍高通sdhci-msm mmc host framework]
+https://www.cnblogs.com/linhaostudy/p/10813200.html
 
-<https://blog.csdn.net/shenjin_s/article/details/80855762?utm_source=blogxgwz2>
+```
 
 ### 1、CARD
 - 1、包含了mmc_driver也就是mmc card的驱动（所有符合MMC协议规范的card通用）  
