@@ -6,6 +6,7 @@ https://blog.csdn.net/huangyabin001/article/details/79290382
 https://www.jianshu.com/p/4780e22b5446?from=timeline&isappinstalled=0
 https://blog.csdn.net/dph125/article/details/90052688
 https://source.android.google.cn/security/selinux?hl=zh-cn
+http://jenkins.ep.chehejia.com/job/X01_OS_Verify/918/
 ```
 ---
 
