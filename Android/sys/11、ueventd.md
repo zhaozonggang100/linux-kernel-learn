@@ -14,3 +14,9 @@ service ueventd /system/bin/ueventd
     seclabel u:r:ueventd:s0
     shutdown critical
 ```
+
+- 2、ueventd的启动实际
+
+```
+early-init
+```
